@@ -6,6 +6,8 @@ pub trait NDISourceLike {
     fn to_descriptor(&self) -> *const bindings::NDIlib_source_t;
 }
 
+/// wrapper for `NDIlib_source_t`
+/// This is a short-lived/reference source descriptor
 pub struct NDISourceRef<'a> {
     name: &'a CStr,
     raw: &'a bindings::NDIlib_source_t,
@@ -35,6 +37,7 @@ impl NDISourceLike for &NDISourceRef<'_> {
     }
 }
 
+/// long-lived/owned source descriptor
 pub struct NDISource {
     name: String,
     raw: bindings::NDIlib_source_t,

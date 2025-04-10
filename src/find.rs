@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use crate::{bindings, structs::NDISourceRef};
 
+/// wrapper for `NDIlib_find_create_t`
 pub struct NDISourceFinderBuilder {
     show_local_sources: bool,
 }
@@ -16,6 +17,10 @@ impl Default for NDISourceFinderBuilder {
 }
 
 impl NDISourceFinderBuilder {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
     pub fn show_local_sources(mut self, show: bool) -> Self {
         self.show_local_sources = show;
         self
@@ -36,12 +41,14 @@ impl NDISourceFinderBuilder {
     }
 }
 
+/// wrapper for `NDIlib_find_instance_t`
 pub struct NDISourceFinder {
     handle: bindings::NDIlib_find_instance_t,
 }
 unsafe impl Send for NDISourceFinder {}
 impl<'a> NDISourceFinder {
-    pub fn get_sources(&'a mut self) -> Option<NDISourceIterator<'a>> {
+    /// Returns an iterator over the sources currently known to this device
+    pub fn get_source_iter(&'a mut self) -> Option<NDISourceIterator<'a>> {
         let mut num_sources = 0u32;
         let sources =
             unsafe { bindings::NDIlib_find_get_current_sources(self.handle, &mut num_sources) };
