@@ -16,11 +16,20 @@ high-performance video, audio, and metadata transmission over IP networks.
   - Sender API for transmitting NDI streams
   - Receiver API for receiving NDI streams
 
+## Version compatibility
+
+This crate is currently tested against SDK version 6.1.1.0
+
+The raw bindings are generated from the header files in the SDK installation
+directory, this way generated code will always match the version it is compiled
+with and linked against.
+
 ## Platform Support
 
 This crates `build.rs` is currently lacking support for platforms other than
 Windows x64, if you are working on another platform, feel free to add support
-for it.
+for it. (It shouldn't be that complicated, windows support is less than 40 lines
+of nearly-boilerplate code)
 
 ## Installation
 
@@ -37,6 +46,11 @@ This crate provides safe abstractions of the NDI SDK. The public API is designed
 to be 100% safe to use. If you encounter restrictive lifetimes, do not try to
 circumvent them, mot likely it just represents the safety requirements of the C
 SDK.
+
+As expected form a C library, safety requirements are not always documented
+in-depth. One common assumption this crate uses it that it is safe to drop
+configuration objects that are passed as pointers (and strings inside them)
+immediately after the call they were passed to has returned.
 
 ## Contributing
 
