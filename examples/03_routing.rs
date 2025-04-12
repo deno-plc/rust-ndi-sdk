@@ -34,7 +34,7 @@ fn main() {
     }
 
     for source in &source_list {
-        println!("Found source: {}", source.name());
+        println!("Found source: {:?}", source);
     }
 
     let mut router = NDIRouterBuilder::new("Test Router").build().unwrap();

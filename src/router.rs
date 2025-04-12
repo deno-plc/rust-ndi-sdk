@@ -1,10 +1,14 @@
-use std::ffi::CString;
+use std::{ffi::CString, fmt::Debug};
+
+use static_assertions::assert_impl_all;
 
 use crate::{bindings, structs::NDISourceLike};
 
+#[derive(Debug, Clone)]
 pub struct NDIRouterBuilder {
     name: String,
 }
+assert_impl_all!(NDIRouterBuilder: Send, Sync);
 
 impl NDIRouterBuilder {
     pub fn new(name: &str) -> Self {
@@ -29,14 +33,19 @@ impl NDIRouterBuilder {
     }
 }
 
+#[derive(Debug)]
 pub struct NDIRouter {
     handle: bindings::NDIlib_routing_instance_t,
 }
+unsafe impl Send for NDIRouter {}
+unsafe impl Sync for NDIRouter {}
 
 impl NDIRouter {
     pub fn switch(&mut self, source: impl NDISourceLike) -> Option<()> {
-        let source_ptr = source.to_descriptor();
-        let result = unsafe { bindings::NDIlib_routing_change(self.handle, source_ptr) };
+        let mut result = false;
+        source.with_descriptor(|source_ptr| {
+            result = unsafe { bindings::NDIlib_routing_change(self.handle, source_ptr) };
+        });
         if result { Some(()) } else { None }
     }
 

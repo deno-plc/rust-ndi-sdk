@@ -4,6 +4,7 @@ use std::time::Duration;
 use crate::{bindings, structs::NDISourceRef};
 
 /// wrapper for `NDIlib_find_create_t`
+#[derive(Debug, Clone)]
 pub struct NDISourceFinderBuilder {
     show_local_sources: bool,
 }
@@ -42,10 +43,12 @@ impl NDISourceFinderBuilder {
 }
 
 /// wrapper for `NDIlib_find_instance_t`
+#[derive(Debug)]
 pub struct NDISourceFinder {
     handle: bindings::NDIlib_find_instance_t,
 }
 unsafe impl Send for NDISourceFinder {}
+
 impl<'a> NDISourceFinder {
     /// Returns an iterator over the sources currently known to this device
     pub fn get_source_iter(&'a mut self) -> Option<NDISourceIterator<'a>> {
