@@ -12,6 +12,7 @@ pub struct NDISourceRef<'a> {
     name: &'a CStr,
     raw: &'a bindings::NDIlib_source_t,
 }
+unsafe impl Send for NDISourceRef<'_> {}
 
 impl<'a> NDISourceRef<'a> {
     pub(crate) fn from(source_t: &'a bindings::NDIlib_source_t) -> Self {
@@ -27,7 +28,7 @@ impl<'a> NDISourceRef<'a> {
     pub fn to_owned(&self) -> NDISource {
         NDISource {
             name: self.name.to_owned().into_string().unwrap(),
-            raw: *self.raw,
+            raw: (*self.raw).clone(),
         }
     }
 }
@@ -42,6 +43,7 @@ pub struct NDISource {
     name: String,
     raw: bindings::NDIlib_source_t,
 }
+unsafe impl Send for NDISource {}
 impl NDISource {
     pub fn name(&self) -> &str {
         &self.name
