@@ -86,13 +86,14 @@ impl NDISource {
 
 impl NDISourceLike for NDISource {
     fn with_descriptor(&self, f: impl FnOnce(&bindings::NDIlib_source_t)) {
-        let name = Pin::new(&self.name_c);
-        let descriptor_anon_1 = self.descriptor_anon_1.as_ref().map(|a| Pin::new(a));
-
         let descriptor = bindings::NDIlib_source_t {
-            p_ndi_name: name.as_ptr(),
+            p_ndi_name: self.name_c.as_ptr(),
             __bindgen_anon_1: bindings::NDIlib_source_t__bindgen_ty_1 {
-                p_url_address: descriptor_anon_1.map(|s| s.as_ptr()).unwrap_or(ptr::null()),
+                p_url_address: self
+                    .descriptor_anon_1
+                    .as_ref()
+                    .map(|s| s.as_ptr())
+                    .unwrap_or(ptr::null()),
             },
         };
         f(&descriptor);
@@ -101,16 +102,7 @@ impl NDISourceLike for NDISource {
 
 impl NDISourceLike for &NDISource {
     fn with_descriptor(&self, f: impl FnOnce(&bindings::NDIlib_source_t)) {
-        let name = Pin::new(&self.name_c);
-        let descriptor_anon_1 = self.descriptor_anon_1.as_ref().map(|a| Pin::new(a));
-
-        let descriptor = bindings::NDIlib_source_t {
-            p_ndi_name: name.as_ptr(),
-            __bindgen_anon_1: bindings::NDIlib_source_t__bindgen_ty_1 {
-                p_url_address: descriptor_anon_1.map(|s| s.as_ptr()).unwrap_or(ptr::null()),
-            },
-        };
-        f(&descriptor);
+        (*self).with_descriptor(f);
     }
 }
 
