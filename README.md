@@ -35,7 +35,9 @@ of nearly-boilerplate code)
 
 1. Make sure to have the [NDI SDK](https://ndi.video/for-developers/#ndi-sdk)
    installed
-2. Add `ndi-sdk-sys` ro your cargo dependencies
+2. Make sure to have Clang/LLVM installed.
+   [see rust-bindgen requirements](https://rust-lang.github.io/rust-bindgen/requirements.html)
+3. Add `ndi-sdk-sys` ro your cargo dependencies
 
 Check out the examples at
 https://github.com/deno-plc/rust-ndi-sdk/tree/main/examples

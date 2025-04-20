@@ -1,6 +1,6 @@
 use std::{
     ffi::{CStr, CString},
-    pin::Pin,
+    fmt::{Debug, Display},
     ptr,
 };
 
@@ -8,8 +8,32 @@ use static_assertions::assert_impl_all;
 
 use crate::bindings;
 
-pub trait NDISourceLike {
-    fn with_descriptor(&self, f: impl FnOnce(&bindings::NDIlib_source_t));
+pub trait NDISourceLike: Debug {
+    /// This method builds a source descriptor for the NDI library that is valid for the duration of the closure call
+    ///
+    /// SAFETY: The pointer passed to the closure is valid for the duration of the closure call.
+    /// SAFETY: This might be a null pointer if it is generated from `NullPtrSource` or `Option<NDISourceLike>::None`.
+    fn with_descriptor<R>(&self, f: impl FnOnce(*const bindings::NDIlib_source_t) -> R) -> R;
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct NullPtrSource;
+
+impl NDISourceLike for NullPtrSource {
+    /// SAFETY: This is always a null pointer
+    fn with_descriptor<R>(&self, f: impl FnOnce(*const bindings::NDIlib_source_t) -> R) -> R {
+        f(ptr::null())
+    }
+}
+
+impl<S: NDISourceLike> NDISourceLike for Option<S> {
+    fn with_descriptor<R>(&self, f: impl FnOnce(*const bindings::NDIlib_source_t) -> R) -> R {
+        if let Some(source) = self {
+            source.with_descriptor(f)
+        } else {
+            NullPtrSource.with_descriptor(f)
+        }
+    }
 }
 
 /// wrapper for `NDIlib_source_t`
@@ -52,13 +76,33 @@ impl<'a> NDISourceRef<'a> {
     }
 }
 impl NDISourceLike for &NDISourceRef<'_> {
-    fn with_descriptor(&self, f: impl FnOnce(&bindings::NDIlib_source_t)) {
+    fn with_descriptor<R>(&self, f: impl FnOnce(*const bindings::NDIlib_source_t) -> R) -> R {
         f(self.raw)
+    }
+}
+impl std::fmt::Debug for NDISourceRef<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let descriptor_anon_1 = self.raw.__bindgen_anon_1;
+        let descriptor_anon_1: *const ::std::os::raw::c_char =
+            unsafe { descriptor_anon_1.p_url_address };
+
+        let mut dbg = f.debug_struct("NDISourceRef");
+
+        dbg.field("name", &self.name.to_str());
+
+        if !descriptor_anon_1.is_null() {
+            let descriptor = unsafe { CStr::from_ptr(descriptor_anon_1) };
+            dbg.field("raw_src", &descriptor);
+        } else {
+            dbg.field("raw_src", &"null");
+        }
+
+        dbg.finish()
     }
 }
 
 /// long-lived/owned source descriptor
-#[derive(Clone)]
+#[derive(Clone, Hash, PartialEq, Eq)]
 pub struct NDISource {
     name: String,
     name_c: CString,
@@ -85,7 +129,7 @@ impl NDISource {
 }
 
 impl NDISourceLike for NDISource {
-    fn with_descriptor(&self, f: impl FnOnce(&bindings::NDIlib_source_t)) {
+    fn with_descriptor<R>(&self, f: impl FnOnce(*const bindings::NDIlib_source_t) -> R) -> R {
         let descriptor = bindings::NDIlib_source_t {
             p_ndi_name: self.name_c.as_ptr(),
             __bindgen_anon_1: bindings::NDIlib_source_t__bindgen_ty_1 {
@@ -96,13 +140,13 @@ impl NDISourceLike for NDISource {
                     .unwrap_or(ptr::null()),
             },
         };
-        f(&descriptor);
+        f(&descriptor)
     }
 }
 
 impl NDISourceLike for &NDISource {
-    fn with_descriptor(&self, f: impl FnOnce(&bindings::NDIlib_source_t)) {
-        (*self).with_descriptor(f);
+    fn with_descriptor<R>(&self, f: impl FnOnce(*const bindings::NDIlib_source_t) -> R) -> R {
+        (*self).with_descriptor(f)
     }
 }
 
@@ -112,5 +156,27 @@ impl std::fmt::Debug for NDISource {
             .field("name", &self.name)
             .field("raw_src", &self.descriptor_anon_1)
             .finish()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Resolution {
+    pub x: usize,
+    pub y: usize,
+}
+
+impl Resolution {
+    pub fn new(x: usize, y: usize) -> Self {
+        Resolution { x, y }
+    }
+
+    pub fn pixels(&self) -> usize {
+        self.x * self.y
+    }
+}
+
+impl Display for Resolution {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}x{}", self.x, self.y)
     }
 }

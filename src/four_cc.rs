@@ -1,0 +1,111 @@
+use num_enum::{IntoPrimitive, TryFromPrimitive};
+
+use crate::{
+    bindings::{self, NDIlib_FourCC_audio_type_e, NDIlib_FourCC_video_type_e},
+    structs::Resolution,
+};
+
+#[cfg(test)]
+use strum::{EnumIter, IntoEnumIterator};
+
+#[repr(i32)]
+#[allow(non_camel_case_types)]
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
+#[cfg_attr(test, derive(EnumIter))]
+pub enum FourCCVideo {
+    UYVY = bindings::NDIlib_FourCC_video_type_e_NDIlib_FourCC_video_type_UYVY,
+    UYVA = bindings::NDIlib_FourCC_video_type_e_NDIlib_FourCC_video_type_UYVA,
+    P216 = bindings::NDIlib_FourCC_video_type_e_NDIlib_FourCC_video_type_P216,
+    PA16 = bindings::NDIlib_FourCC_video_type_e_NDIlib_FourCC_video_type_PA16,
+    YV12 = bindings::NDIlib_FourCC_video_type_e_NDIlib_FourCC_video_type_YV12,
+    I420 = bindings::NDIlib_FourCC_video_type_e_NDIlib_FourCC_video_type_I420,
+    NV12 = bindings::NDIlib_FourCC_video_type_e_NDIlib_FourCC_video_type_NV12,
+    BGRA = bindings::NDIlib_FourCC_video_type_e_NDIlib_FourCC_video_type_BGRA,
+    BGRX = bindings::NDIlib_FourCC_video_type_e_NDIlib_FourCC_video_type_BGRX,
+    RGBA = bindings::NDIlib_FourCC_video_type_e_NDIlib_FourCC_video_type_RGBA,
+    RGBX = bindings::NDIlib_FourCC_video_type_e_NDIlib_FourCC_video_type_RGBX,
+}
+
+impl FourCCVideo {
+    pub fn to_ffi(self) -> NDIlib_FourCC_video_type_e {
+        self.into()
+    }
+
+    pub fn from_ffi(value: NDIlib_FourCC_video_type_e) -> Option<Self> {
+        Self::try_from_primitive(value).ok()
+    }
+
+    pub fn buffer_size(self, resolution: Resolution) -> Option<usize> {
+        use FourCCVideo::*;
+        match self {
+            UYVY => Some(resolution.pixels() * 2),
+            BGRA | BGRX | RGBA | RGBX => Some(resolution.pixels() * 4),
+            _ => None,
+        }
+    }
+}
+
+#[repr(i32)]
+#[allow(non_camel_case_types)]
+#[non_exhaustive]
+#[derive(Debug, Default, Clone, Copy, Hash, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
+#[cfg_attr(test, derive(EnumIter))]
+pub enum FourCCAudio {
+    #[default]
+    FLTP = bindings::NDIlib_FourCC_audio_type_e_NDIlib_FourCC_audio_type_FLTP,
+}
+
+impl FourCCAudio {
+    pub fn to_ffi(self) -> NDIlib_FourCC_audio_type_e {
+        self.into()
+    }
+
+    pub fn from_ffi(value: NDIlib_FourCC_audio_type_e) -> Option<Self> {
+        Self::try_from_primitive(value).ok()
+    }
+}
+
+/// Make sure that the video and audio FourCCs do not overlap, otherwise FourCC::from_ffi
+/// will not be able to distinguish between them.
+#[test]
+fn four_cc_no_overlap() {
+    use std::collections::HashSet;
+
+    let video = FourCCVideo::iter()
+        .map(|variant| variant.to_ffi())
+        .collect::<HashSet<_>>();
+    let audio = FourCCAudio::iter()
+        .map(|variant| variant.to_ffi())
+        .collect::<HashSet<_>>();
+
+    assert_eq!(video.intersection(&audio).count(), 0);
+}
+
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+pub enum FourCC {
+    Video(FourCCVideo),
+    Audio(FourCCAudio),
+    Unknown(i32),
+}
+
+impl FourCC {
+    pub fn to_ffi(self) -> i32 {
+        match self {
+            FourCC::Video(cc) => cc.to_ffi(),
+            FourCC::Audio(cc) => cc.to_ffi(),
+            FourCC::Unknown(cc) => cc,
+        }
+    }
+
+    pub fn from_ffi(value: NDIlib_FourCC_audio_type_e) -> Self {
+        if let Some(cc) = FourCCVideo::from_ffi(value) {
+            FourCC::Video(cc)
+        } else if let Some(cc) = FourCCAudio::from_ffi(value) {
+            FourCC::Audio(cc)
+        } else {
+            FourCC::Unknown(value)
+        }
+    }
+}
