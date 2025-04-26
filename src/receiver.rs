@@ -239,6 +239,23 @@ impl NDIReceiver {
 
                 NDIRecvType::None
             }
+            #[cfg(any(debug_assertions, feature = "strict_assertions"))]
+            discriminant => {
+                eprintln!("NDI SDK returned an unknown frame type: {:?}", discriminant);
+
+                if let Some(video) = video {
+                    video.assert_unwritten();
+                }
+                if let Some(audio) = audio {
+                    audio.assert_unwritten();
+                }
+                if let Some(meta) = meta {
+                    meta.assert_unwritten();
+                }
+
+                NDIRecvType::Unknown
+            }
+            #[cfg(not(any(debug_assertions, feature = "strict_assertions")))]
             _ => NDIRecvType::Unknown,
         }
     }
