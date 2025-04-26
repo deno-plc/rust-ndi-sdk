@@ -1,9 +1,9 @@
 use std::{env, time::Duration};
 
 use ndi_sdk_sys::{
-    enums::{NDIBandwidthMode, NDIColorFormat},
+    enums::NDIColorFormat,
     four_cc::FourCCVideo,
-    frame::{MetadataFrame, VideoFrame},
+    frame::{metadata::MetadataFrame, video::VideoFrame},
     receiver::{NDIReceiverBuilder, NDIRecvType},
     structs::NDISource,
     *,

@@ -1,3 +1,5 @@
+use std::fmt::{Debug, Display};
+
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 use crate::{
@@ -9,8 +11,8 @@ use crate::{
 use strum::{EnumIter, IntoEnumIterator};
 
 #[repr(i32)]
-#[allow(non_camel_case_types)]
 #[non_exhaustive]
+#[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
 #[cfg_attr(test, derive(EnumIter))]
 pub enum FourCCVideo {
@@ -44,11 +46,33 @@ impl FourCCVideo {
             _ => None,
         }
     }
+
+    pub fn buffer_info(self, resolution: Resolution) -> Option<BufferInfo> {
+        use FourCCVideo::*;
+        match self {
+            UYVY => Some(BufferInfo {
+                size: resolution.pixels() * 2,
+                stride: resolution.x * 2,
+            }),
+            BGRA | BGRX | RGBA | RGBX => Some(BufferInfo {
+                size: resolution.pixels() * 4,
+                stride: resolution.x * 4,
+            }),
+            _ => None,
+        }
+    }
+}
+
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+pub struct BufferInfo {
+    pub size: usize,
+    pub stride: usize,
 }
 
 #[repr(i32)]
-#[allow(non_camel_case_types)]
 #[non_exhaustive]
+#[allow(non_camel_case_types)]
 #[derive(Debug, Default, Clone, Copy, Hash, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
 #[cfg_attr(test, derive(EnumIter))]
 pub enum FourCCAudio {
@@ -83,7 +107,7 @@ fn four_cc_no_overlap() {
 }
 
 #[non_exhaustive]
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+#[derive(Clone, Copy, Hash, PartialEq, Eq)]
 pub enum FourCC {
     Video(FourCCVideo),
     Audio(FourCCAudio),
@@ -107,5 +131,33 @@ impl FourCC {
         } else {
             FourCC::Unknown(value)
         }
+    }
+
+    fn type_name(self) -> &'static str {
+        match self {
+            FourCC::Video(_) => "Video",
+            FourCC::Audio(_) => "Audio",
+            FourCC::Unknown(_) => "Unknown",
+        }
+    }
+}
+
+impl Display for FourCC {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let bytes: [u8; 4] = self.to_ffi().to_le_bytes();
+
+        let ascii = String::from_utf8_lossy(&bytes);
+
+        write!(f, "{}", ascii)
+    }
+}
+
+impl Debug for FourCC {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let bytes: [u8; 4] = self.to_ffi().to_le_bytes();
+
+        let ascii = String::from_utf8_lossy(&bytes);
+
+        write!(f, "FourCC({},{})", ascii, self.type_name())
     }
 }

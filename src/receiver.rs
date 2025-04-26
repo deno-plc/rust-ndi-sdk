@@ -5,7 +5,10 @@ use std::{ffi::CString, time::Duration};
 use crate::{
     bindings::{self},
     enums::{NDIBandwidthMode, NDIColorFormat},
-    frame::{AsFFIWritable, AudioFrame, FrameDataDropGuard, MetadataFrame, VideoFrame},
+    frame::{
+        audio::AudioFrame, drop_guard::FrameDataDropGuard, generic::AsFFIWritable,
+        metadata::MetadataFrame, video::VideoFrame,
+    },
     structs::NDISourceLike,
 };
 

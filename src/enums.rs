@@ -8,6 +8,7 @@ use crate::{
 };
 
 #[repr(i32)]
+#[non_exhaustive]
 #[allow(non_camel_case_types)]
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
 pub enum NDIColorFormat {
@@ -102,6 +103,7 @@ impl NDIColorFormat {
     }
 }
 
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FromFourCCError {
     UnsupportedFormat {
@@ -116,6 +118,7 @@ pub enum FromFourCCError {
 }
 
 #[repr(i32)]
+#[non_exhaustive]
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
 pub enum NDIBandwidthMode {
     #[default]
@@ -136,6 +139,7 @@ impl NDIBandwidthMode {
 }
 
 #[repr(i32)]
+#[non_exhaustive]
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
 pub enum NDIFieldedFrameMode {
     #[default]
