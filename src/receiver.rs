@@ -12,6 +12,7 @@ use crate::{
     structs::NDISourceLike,
 };
 
+#[non_exhaustive]
 #[derive(Debug, Clone)]
 pub struct NDIReceiverBuilder<Source: NDISourceLike> {
     pub source: Option<Source>,
