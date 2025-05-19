@@ -1,3 +1,5 @@
+use static_assertions::const_assert_eq;
+
 use crate::bindings;
 
 #[non_exhaustive]
@@ -10,8 +12,8 @@ pub enum NDITime {
 
 const NDI_TIME_DEFAULT: i64 = i64::MAX;
 
-static_assertions::const_assert_eq!(NDI_TIME_DEFAULT, bindings::NDIlib_recv_timestamp_undefined);
-static_assertions::const_assert_eq!(NDI_TIME_DEFAULT, bindings::NDIlib_send_timecode_synthesize);
+const_assert_eq!(NDI_TIME_DEFAULT, bindings::NDIlib_recv_timestamp_undefined);
+const_assert_eq!(NDI_TIME_DEFAULT, bindings::NDIlib_send_timecode_synthesize);
 
 impl NDITime {
     pub fn to_ffi(self) -> i64 {
@@ -27,4 +29,7 @@ impl NDITime {
             t => NDITime::Time(t),
         }
     }
+
+    pub const UNDEFINED: Self = Self::Default;
+    pub const SYNTHESIZE: Self = Self::Default;
 }
