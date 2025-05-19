@@ -161,6 +161,18 @@ impl VideoFrame {
             None
         }
     }
+    pub fn video_data_mut(&mut self) -> Option<&mut [u8]> {
+        if self.raw.p_data.is_null() {
+            None
+        } else if let Some(buffer_size) = self
+            .four_cc()
+            .and_then(|cc| cc.buffer_size(self.resolution()))
+        {
+            Some(unsafe { std::slice::from_raw_parts_mut(self.raw.p_data, buffer_size) })
+        } else {
+            None
+        }
+    }
 }
 
 impl Debug for VideoFrame {
