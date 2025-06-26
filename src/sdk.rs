@@ -13,27 +13,27 @@ pub fn version() -> Option<&'static str> {
     version.to_str().ok()
 }
 
-/// Recover whether the current CPU in the system is capable of running NDILib.
+/// Detect whether the current CPU in the system is capable of running NDILib.
 /// Currently NDILib requires SSE4.2 instructions (see documentation).
 pub fn cpu_supported() -> bool {
-    unsafe { bindings::NDIlib_is_supported_CPU() }
+    unsafe { bindings::NDIlib_is_supported_CPU() == true }
 }
 
-/// This is not actually required, but will start the libraries which might get you slightly better
+/// This is not actually required, but will start the libraries which might result in a slightly better
 /// performance in some cases. In general it is more "correct" to call it although it is not required.
 pub fn initialize() -> Result<(), NDIInitError> {
-    if unsafe { bindings::NDIlib_initialize() } {
+    if unsafe { bindings::NDIlib_initialize() == true } {
         Ok(())
-    } else if cpu_supported() {
-        Err(NDIInitError::GenericError)
-    } else {
+    } else if !cpu_supported() {
         Err(NDIInitError::UnsupportedCPU)
+    } else {
+        Err(NDIInitError::GenericError)
     }
 }
 
-/// This is not actually required, but will end the libraries which might get you slightly better
+/// This is not actually required, but will end the libraries which might result in a slightly better
 /// performance in some cases. In general it is more "correct" to call it although it is not required.
-/// There is no way to call it that would have an adverse impact on anything (even calling destroy before
+/// There is no way a call it could have an adverse impact on anything (even calling destroy before
 /// you've deleted all your objects).
 pub fn destroy() {
     unsafe { bindings::NDIlib_destroy() }

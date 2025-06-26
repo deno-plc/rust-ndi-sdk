@@ -4,6 +4,7 @@ use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 use crate::{
     bindings::{self, NDIlib_FourCC_audio_type_e, NDIlib_FourCC_video_type_e},
+    enums::NDIFieldedFrameMode,
     structs::Resolution,
 };
 
@@ -47,18 +48,41 @@ impl FourCCVideo {
         }
     }
 
-    pub fn buffer_info(self, resolution: Resolution) -> Option<BufferInfo> {
+    pub fn buffer_info(
+        self,
+        resolution: Resolution,
+        field_mode: NDIFieldedFrameMode,
+    ) -> Option<BufferInfo> {
         use FourCCVideo::*;
+        let mut size_per_pixel = 0;
+        let mut valid = false;
         match self {
-            UYVY => Some(BufferInfo {
-                size: resolution.pixels() * 2,
-                stride: resolution.x * 2,
-            }),
-            BGRA | BGRX | RGBA | RGBX => Some(BufferInfo {
-                size: resolution.pixels() * 4,
-                stride: resolution.x * 4,
-            }),
-            _ => None,
+            UYVY => {
+                size_per_pixel = 2;
+                valid = true;
+            }
+            BGRA | BGRX | RGBA | RGBX => {
+                size_per_pixel = 4;
+                valid = true;
+            }
+            _ => (),
+        }
+
+        if valid {
+            let size = resolution.pixels() * size_per_pixel;
+
+            Some(BufferInfo {
+                size: if field_mode.is_single_field() {
+                    size / 2
+                } else {
+                    size
+                },
+                stride: resolution.x * size_per_pixel,
+                resolution,
+                field_mode,
+            })
+        } else {
+            None
         }
     }
 }
@@ -68,6 +92,8 @@ impl FourCCVideo {
 pub struct BufferInfo {
     pub size: usize,
     pub stride: usize,
+    pub resolution: Resolution,
+    pub field_mode: NDIFieldedFrameMode,
 }
 
 #[repr(i32)]
@@ -133,6 +159,12 @@ impl FourCC {
         }
     }
 
+    pub fn to_string(self) -> String {
+        let bytes: [u8; 4] = self.to_ffi().to_le_bytes();
+
+        String::from_utf8_lossy(&bytes).to_string()
+    }
+
     fn type_name(self) -> &'static str {
         match self {
             FourCC::Video(_) => "Video",
@@ -159,5 +191,17 @@ impl Debug for FourCC {
         let ascii = String::from_utf8_lossy(&bytes);
 
         write!(f, "FourCC({},{})", ascii, self.type_name())
+    }
+}
+
+impl From<FourCCVideo> for FourCC {
+    fn from(value: FourCCVideo) -> Self {
+        FourCC::Video(value)
+    }
+}
+
+impl From<FourCCAudio> for FourCC {
+    fn from(value: FourCCAudio) -> Self {
+        FourCC::Audio(value)
     }
 }

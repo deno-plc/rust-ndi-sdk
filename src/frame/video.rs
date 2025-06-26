@@ -6,7 +6,10 @@ use num::Rational32;
 
 pub use crate::bindings::NDIlib_video_frame_v2_t as NDIRawVideoFrame;
 use crate::{
-    bindings, enums::NDIFieldedFrameMode, four_cc::FourCCVideo, structs::Resolution,
+    bindings,
+    enums::NDIFieldedFrameMode,
+    four_cc::{BufferInfo, FourCCVideo},
+    structs::Resolution,
     timecode::NDITime,
 };
 
@@ -18,14 +21,21 @@ impl RawFrameInner for NDIRawVideoFrame {
         unsafe { bindings::NDIlib_recv_free_video_v2(recv, self) }
     }
 
+    #[inline]
+    unsafe fn drop_with_sender(&mut self, _sender: bindings::NDIlib_send_instance_t) {
+        panic!(
+            "NDIRawVideoFrame cannot be dropped with a sender as it cannot be received by the sender."
+        )
+    }
+
     fn assert_unwritten(&self) {
         assert!(
             self.p_data.is_null(),
-            "NDIRawVideoFrame data is not null, but should be. This is a bug, most likely due to an FFI contract violation."
+            "[Fatal FFI Error] NDIRawVideoFrame data is not null, but should be."
         );
         assert!(
             self.p_metadata.is_null(),
-            "NDIRawVideoFrame metadata is not null, but should be. This is a bug, most likely due to an FFI contract violation."
+            "[Fatal FFI Error] NDIRawVideoFrame metadata is not null, but should be."
         );
     }
 }
@@ -36,7 +46,7 @@ pub type VideoFrame = NDIFrame<NDIRawVideoFrame>;
 
 impl NDIFrameExt<NDIRawVideoFrame> for VideoFrame {
     fn data_valid(&self) -> bool {
-        self.raw.p_data.is_null() && self.alloc != FrameDataDropGuard::NullPtr
+        !self.raw.p_data.is_null() && self.alloc != FrameDataDropGuard::NullPtr
     }
 
     fn clear(&mut self) {
@@ -71,23 +81,43 @@ impl VideoFrame {
         }
     }
 
-    pub unsafe fn alloc_raw_frame_buffer(&mut self, size: usize) {
+    pub unsafe fn alloc_raw_frame_buffer(
+        &mut self,
+        size: usize,
+        stride: i32,
+        resolution: Resolution,
+    ) {
         let (alloc, ptr) = FrameDataDropGuard::new_boxed(size);
         self.alloc = alloc;
         self.raw.p_data = ptr;
+        unsafe {
+            self.set_lib_stride(stride);
+            self.set_resolution(resolution);
+        }
+    }
+
+    pub fn try_alloc(
+        &mut self,
+        resolution: Resolution,
+        four_cc: FourCCVideo,
+    ) -> Result<(), VideoFrameAllocationError> {
+        if let Some(info) = four_cc.buffer_info(resolution, self.frame_format()) {
+            let (alloc, ptr) = FrameDataDropGuard::new_boxed(info.size);
+            unsafe { self.drop_buffer_backend() };
+            self.alloc = alloc;
+            self.raw.p_data = ptr;
+            self.raw.FourCC = four_cc.to_ffi();
+            unsafe {
+                self.set_lib_stride(info.stride as i32);
+            }
+            Ok(())
+        } else {
+            Err(VideoFrameAllocationError::UnsupportedFourCC(four_cc))
+        }
     }
 
     pub fn alloc(&mut self, resolution: Resolution, four_cc: FourCCVideo) {
-        if let Some(info) = four_cc.buffer_info(resolution) {
-            let (alloc, ptr) = FrameDataDropGuard::new_boxed(info.size);
-            self.alloc = alloc;
-            self.raw.p_data = ptr;
-            unsafe {
-                self.set_stride(info.stride as i32);
-            }
-        } else {
-            panic!("Unsupported FourCC format: {:?}", four_cc);
-        }
+        self.try_alloc(resolution, four_cc).unwrap();
     }
 
     pub fn resolution(&self) -> Resolution {
@@ -121,8 +151,9 @@ impl VideoFrame {
     }
     // TODO: pub fn set_metadata
 
-    pub fn frame_format(&self) -> Option<NDIFieldedFrameMode> {
+    pub fn frame_format(&self) -> NDIFieldedFrameMode {
         NDIFieldedFrameMode::from_ffi(self.raw.frame_format_type)
+            .expect("[Fatal FFI Error] Invalid frame format type")
     }
     pub unsafe fn set_frame_format(&mut self, frame_format: NDIFieldedFrameMode) {
         self.raw.frame_format_type = frame_format.to_ffi();
@@ -142,37 +173,62 @@ impl VideoFrame {
         self.raw.timestamp = time.to_ffi();
     }
 
-    fn stride(&self) -> i32 {
+    fn lib_stride(&self) -> i32 {
         unsafe { self.raw.__bindgen_anon_1.line_stride_in_bytes }
     }
-    unsafe fn set_stride(&mut self, stride: i32) {
+    unsafe fn set_lib_stride(&mut self, stride: i32) {
         self.raw.__bindgen_anon_1.line_stride_in_bytes = stride;
     }
 
-    pub fn video_data(&self) -> Option<&[u8]> {
+    pub fn video_data(&self) -> Option<(&[u8], BufferInfo)> {
         if self.raw.p_data.is_null() {
             None
-        } else if let Some(buffer_size) = self
+        } else if let Some(info) = self
             .four_cc()
-            .and_then(|cc| cc.buffer_size(self.resolution()))
+            .and_then(|cc| cc.buffer_info(self.resolution(), self.frame_format()))
         {
-            Some(unsafe { std::slice::from_raw_parts(self.raw.p_data, buffer_size) })
+            assert_eq!(
+                info.stride,
+                self.lib_stride() as usize,
+                "[Fatal FFI Error] Stride mismatch"
+            );
+            Some((
+                unsafe { std::slice::from_raw_parts(self.raw.p_data, info.size) },
+                info,
+            ))
         } else {
             None
         }
     }
-    pub fn video_data_mut(&mut self) -> Option<&mut [u8]> {
+
+    pub fn video_data_mut(&mut self) -> Option<(&mut [u8], BufferInfo)> {
         if self.raw.p_data.is_null() {
             None
-        } else if let Some(buffer_size) = self
+        } else if !self.alloc.is_mut() {
+            None
+        } else if let Some(info) = self
             .four_cc()
-            .and_then(|cc| cc.buffer_size(self.resolution()))
+            .and_then(|cc| cc.buffer_info(self.resolution(), self.frame_format()))
         {
-            Some(unsafe { std::slice::from_raw_parts_mut(self.raw.p_data, buffer_size) })
+            assert_eq!(
+                info.stride,
+                self.lib_stride() as usize,
+                "[Fatal FFI Error] Stride mismatch"
+            );
+            Some((
+                unsafe { std::slice::from_raw_parts_mut(self.raw.p_data, info.size) },
+                info,
+            ))
         } else {
             None
         }
     }
+}
+
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VideoFrameAllocationError {
+    UnsupportedFourCC(FourCCVideo),
 }
 
 impl Debug for VideoFrame {
@@ -193,9 +249,9 @@ impl Debug for VideoFrame {
             write!(f, "FourCC: {:#x}, ", self.raw.FourCC)?;
         }
 
-        write!(f, "format: {:?}, ", self.frame_format().unwrap())?;
+        write!(f, "format: {:?}, ", self.frame_format())?;
 
-        write!(f, "stride: {}, ", self.stride())?;
+        write!(f, "stride: {}, ", self.lib_stride())?;
 
         write!(f, "metadata: {:?}, ", self.metadata())?;
 
@@ -206,6 +262,6 @@ impl Debug for VideoFrame {
             self.recv_time()
         )?;
 
-        write!(f, "alloc: {:?} }}", self.alloc)
+        write!(f, "alloc: {:?} @ {:?} }}", self.raw.p_data, self.alloc)
     }
 }

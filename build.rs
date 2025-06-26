@@ -12,8 +12,10 @@ fn main() {
 
     println!("cargo:rustc-link-lib=Processing.NDI.Lib.x64");
 
+    // println!("cargo:rerun-if-changed=src/bindings.h");
+
     let bindings = bindgen::Builder::default()
-        .header("src/bindings.h")
+        // .header("src/bindings.h")
         .header(
             ndi_sdk_dir
                 .join("Include/Processing.NDI.Lib.h")

@@ -2,34 +2,36 @@ use static_assertions::const_assert_eq;
 
 use crate::bindings;
 
-#[non_exhaustive]
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum NDITime {
-    #[default]
-    Default,
-    Time(i64),
-}
+#[repr(transparent)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct NDITime(i64);
 
 const NDI_TIME_DEFAULT: i64 = i64::MAX;
 
 const_assert_eq!(NDI_TIME_DEFAULT, bindings::NDIlib_recv_timestamp_undefined);
 const_assert_eq!(NDI_TIME_DEFAULT, bindings::NDIlib_send_timecode_synthesize);
 
+impl Default for NDITime {
+    fn default() -> Self {
+        Self(NDI_TIME_DEFAULT)
+    }
+}
+
 impl NDITime {
+    #[inline]
     pub fn to_ffi(self) -> i64 {
-        match self {
-            NDITime::Default => NDI_TIME_DEFAULT,
-            NDITime::Time(t) => t,
-        }
+        self.0
     }
 
-    pub fn from_ffi(t: i64) -> Self {
-        match t {
-            NDI_TIME_DEFAULT => NDITime::Default,
-            t => NDITime::Time(t),
-        }
+    #[inline]
+    pub fn from_ffi(time: i64) -> Self {
+        Self(time)
     }
 
-    pub const UNDEFINED: Self = Self::Default;
-    pub const SYNTHESIZE: Self = Self::Default;
+    pub fn is_default(self) -> bool {
+        self.0 == NDI_TIME_DEFAULT
+    }
+
+    pub const UNDEFINED: Self = Self(NDI_TIME_DEFAULT);
+    pub const SYNTHESIZE: Self = Self(NDI_TIME_DEFAULT);
 }

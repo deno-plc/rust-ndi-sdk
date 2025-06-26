@@ -2,7 +2,7 @@ use std::{ffi::CString, fmt::Debug};
 
 use static_assertions::assert_impl_all;
 
-use crate::{bindings, structs::NDISourceLike};
+use crate::{bindings, source::NDISourceLike};
 
 #[derive(Debug, Clone)]
 pub struct NDIRouterBuilder {
@@ -17,7 +17,7 @@ impl NDIRouterBuilder {
         }
     }
 
-    pub fn build(&self) -> Result<NDIRouter, String> {
+    pub fn build(&self) -> Result<NDIRouter, NDIRouterBuilderError> {
         let name = CString::new(self.name.clone()).unwrap();
         let options = bindings::NDIlib_routing_create_t {
             p_ndi_name: name.as_ptr(),
@@ -26,11 +26,17 @@ impl NDIRouterBuilder {
         let handle = unsafe { bindings::NDIlib_routing_create(&options) };
 
         if handle.is_null() {
-            return Err("Failed to create NDI router".to_string());
+            return Err(NDIRouterBuilderError::CreationFailed);
         }
 
         Ok(NDIRouter { handle })
     }
+}
+
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NDIRouterBuilderError {
+    CreationFailed,
 }
 
 #[derive(Debug)]

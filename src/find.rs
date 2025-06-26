@@ -1,7 +1,7 @@
 use core::slice;
 use std::time::Duration;
 
-use crate::{bindings, structs::NDISourceRef};
+use crate::{bindings, source::NDISourceRef, structs::BlockingUpdate};
 
 /// wrapper for `NDIlib_find_create_t`
 #[derive(Debug, Clone)]
@@ -67,13 +67,15 @@ impl<'a> NDISourceFinder {
         })
     }
 
-    pub fn blocking_wait_for_change(&mut self, timeout: Duration) -> bool {
-        unsafe {
+    pub fn wait_for_change(&mut self, timeout: Duration) -> BlockingUpdate<()> {
+        let changed = unsafe {
             bindings::NDIlib_find_wait_for_sources(
                 self.handle,
                 timeout.as_millis().try_into().unwrap_or(u32::MAX),
             )
-        }
+        };
+
+        BlockingUpdate::new((), changed)
     }
 }
 

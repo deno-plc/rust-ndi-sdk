@@ -1,15 +1,20 @@
-#![allow(non_upper_case_globals)]
-
-use std::{ffi::CString, time::Duration};
+use std::{
+    ffi::{CStr, CString},
+    time::Duration,
+};
 
 use crate::{
     bindings::{self},
-    enums::{NDIBandwidthMode, NDIColorFormat},
+    enums::{NDIBandwidthMode, NDIPreferredColorFormat},
     frame::{
-        audio::AudioFrame, drop_guard::FrameDataDropGuard, generic::AsFFIWritable,
-        metadata::MetadataFrame, video::VideoFrame,
+        audio::AudioFrame,
+        drop_guard::FrameDataDropGuard,
+        generic::{AsFFIReadable, AsFFIWritable},
+        metadata::MetadataFrame,
+        video::VideoFrame,
     },
-    structs::NDISourceLike,
+    source::NDISourceLike,
+    structs::Tally,
 };
 
 #[non_exhaustive]
@@ -17,7 +22,7 @@ use crate::{
 pub struct NDIReceiverBuilder<Source: NDISourceLike> {
     pub source: Option<Source>,
     pub name: Option<CString>,
-    pub color_format: NDIColorFormat,
+    pub color_format: NDIPreferredColorFormat,
     pub bandwidth: NDIBandwidthMode,
     pub allow_fielded_video: bool,
 }
@@ -27,7 +32,7 @@ impl<Source: NDISourceLike> Default for NDIReceiverBuilder<Source> {
         Self {
             source: None,
             name: None,
-            color_format: NDIColorFormat::default(),
+            color_format: NDIPreferredColorFormat::default(),
             bandwidth: NDIBandwidthMode::default(),
             allow_fielded_video: true,
         }
@@ -49,7 +54,7 @@ impl<Source: NDISourceLike> NDIReceiverBuilder<Source> {
         self
     }
 
-    pub fn color_format(mut self, color_format: NDIColorFormat) -> Self {
+    pub fn color_format(mut self, color_format: NDIPreferredColorFormat) -> Self {
         self.color_format = color_format;
         self
     }
@@ -130,17 +135,17 @@ impl NDIReceiver {
         mut meta: Option<&mut MetadataFrame>,
         timeout: Duration,
     ) -> NDIRecvType {
-        let video_ptr = video.to_ffi_frame_ptr();
+        let video_ptr = video.to_ffi_recv_frame_ptr();
         if video_ptr.is_null() {
             video = None; // make sure NullPtr's are consistent with the option
         }
 
-        let audio_ptr = audio.to_ffi_frame_ptr();
+        let audio_ptr = audio.to_ffi_recv_frame_ptr();
         if audio_ptr.is_null() {
             audio = None; // make sure NullPtr's are consistent with the option
         }
 
-        let meta_ptr = meta.to_ffi_frame_ptr();
+        let meta_ptr = meta.to_ffi_recv_frame_ptr();
         if meta_ptr.is_null() {
             meta = None; // make sure NullPtr's are consistent with the option
         }
@@ -155,7 +160,7 @@ impl NDIReceiver {
             bindings::NDIlib_frame_type_e_NDIlib_frame_type_video => {
                 video
                     .expect(
-                        "SDK indicated that a video frame was received, but there is no buffer it could have been written to",
+                        "[Fatal FFI Error] SDK indicated that a video frame was received, but there is no buffer it could have been written to",
                     )
                     .alloc = FrameDataDropGuard::Receiver(self.handle);
 
@@ -174,7 +179,7 @@ impl NDIReceiver {
             bindings::NDIlib_frame_type_e_NDIlib_frame_type_audio => {
                 audio
                     .expect(
-                        "SDK indicated that an audio frame was received, but there is no buffer it could have been written to",
+                        "[Fatal FFI Error] SDK indicated that an audio frame was received, but there is no buffer it could have been written to",
                     )
                     .alloc = FrameDataDropGuard::Receiver(self.handle);
 
@@ -192,7 +197,7 @@ impl NDIReceiver {
             }
             bindings::NDIlib_frame_type_e_NDIlib_frame_type_metadata => {
                 meta.expect(
-                    "SDK indicated that a metadata frame was received, but there is no buffer it could have been written to",
+                    "[Fatal FFI Error] SDK indicated that a metadata frame was received, but there is no buffer it could have been written to",
                 )
                 .alloc = FrameDataDropGuard::Receiver(self.handle);
 
@@ -260,10 +265,99 @@ impl NDIReceiver {
             _ => NDIRecvType::Unknown,
         }
     }
+
+    unsafe fn free_string(&self, ptr: *const std::os::raw::c_char) {
+        if !ptr.is_null() {
+            unsafe { bindings::NDIlib_recv_free_string(self.handle, ptr) };
+        }
+    }
+
+    pub fn send_metadata(&self, frame: &MetadataFrame) -> Result<(), SendMetadataError> {
+        let ptr = frame.to_ffi_send_frame_ptr().map_err(|err| match err {
+            crate::frame::generic::FFIReadablePtrError::NotReadable(desc) => {
+                SendMetadataError::NotSendable(desc)
+            }
+        })?;
+
+        let result = unsafe { bindings::NDIlib_recv_send_metadata(self.handle, ptr) };
+
+        if result {
+            Ok(())
+        } else {
+            Err(SendMetadataError::NotConnected)
+        }
+    }
+
+    pub fn add_connection_metadata(&self, frame: &MetadataFrame) -> Result<(), SendMetadataError> {
+        let ptr = frame.to_ffi_send_frame_ptr().map_err(|err| match err {
+            crate::frame::generic::FFIReadablePtrError::NotReadable(desc) => {
+                SendMetadataError::NotSendable(desc)
+            }
+        })?;
+
+        unsafe { bindings::NDIlib_recv_add_connection_metadata(self.handle, ptr) };
+
+        Ok(())
+    }
+
+    pub fn clear_connection_metadata(&self) {
+        unsafe { bindings::NDIlib_recv_clear_connection_metadata(self.handle) };
+    }
+
+    pub fn set_tally(&self, tally: Tally) {
+        let tally = tally.to_ffi();
+
+        unsafe { bindings::NDIlib_recv_set_tally(self.handle, &tally) };
+    }
+
+    pub fn get_num_connections(&self) -> usize {
+        let num_connections = unsafe { bindings::NDIlib_recv_get_no_connections(self.handle) };
+        num_connections
+            .try_into()
+            .expect("[Fatal FFI Error] NDI SDK returned a negative number of connections")
+    }
+
+    pub fn get_web_control(&self) -> Option<NDIWebControlInfo> {
+        let ptr = unsafe { bindings::NDIlib_recv_get_web_control(self.handle) };
+
+        if ptr.is_null() {
+            return None;
+        }
+
+        let str = unsafe { CStr::from_ptr(ptr) };
+        Some(NDIWebControlInfo {
+            url: str,
+            recv: self,
+        })
+    }
 }
 
 impl Drop for NDIReceiver {
     fn drop(&mut self) {
         unsafe { bindings::NDIlib_recv_destroy(self.handle) };
+    }
+}
+
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+pub enum SendMetadataError {
+    NotSendable(&'static str),
+    NotConnected,
+}
+
+pub struct NDIWebControlInfo<'a> {
+    url: &'a CStr,
+    recv: &'a NDIReceiver,
+}
+
+impl<'a> Drop for NDIWebControlInfo<'a> {
+    fn drop(&mut self) {
+        unsafe { self.recv.free_string(self.url.as_ptr()) };
+    }
+}
+
+impl<'a> NDIWebControlInfo<'a> {
+    pub fn as_str(&self) -> &'a CStr {
+        self.url
     }
 }

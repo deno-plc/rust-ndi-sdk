@@ -15,6 +15,11 @@ impl<Raw: RawFrame> NDIFrame<Raw> {
         self.alloc.is_ffi_writable()
     }
 
+    #[inline]
+    pub fn is_ffi_readable(&self) -> bool {
+        self.alloc.is_ffi_readable()
+    }
+
     pub(crate) fn assert_unwritten(&self) {
         self.raw.assert_unwritten();
         assert!(
@@ -24,27 +29,22 @@ impl<Raw: RawFrame> NDIFrame<Raw> {
     }
 
     pub(crate) unsafe fn drop_buffer_backend(&mut self) {
-        unsafe { FrameDataDropGuard::drop_with_recv(&mut self.alloc, &mut self.raw) };
+        unsafe { FrameDataDropGuard::drop_buffer(&mut self.alloc, &mut self.raw) };
     }
 }
 
 impl<Raw: RawFrame, C> Drop for NDIFrame<Raw, C> {
     fn drop(&mut self) {
-        match &self.alloc {
-            FrameDataDropGuard::Receiver(recv) => {
-                unsafe { self.raw.drop_with_recv(*recv) };
-            }
-            FrameDataDropGuard::Box(_) | FrameDataDropGuard::NullPtr => {}
-        }
+        unsafe { self.alloc.drop_buffer(&mut self.raw) };
     }
 }
 
 pub(crate) trait AsFFIWritable<T: RawFrame> {
-    fn to_ffi_frame_ptr(&mut self) -> *mut T;
+    fn to_ffi_recv_frame_ptr(&mut self) -> *mut T;
 }
 
 impl<Raw: RawFrame> AsFFIWritable<Raw> for NDIFrame<Raw> {
-    fn to_ffi_frame_ptr(&mut self) -> *mut Raw {
+    fn to_ffi_recv_frame_ptr(&mut self) -> *mut Raw {
         if self.is_ffi_writable() {
             &mut self.raw
         } else {
@@ -68,9 +68,9 @@ impl<Raw: RawFrame> AsFFIWritable<Raw> for NDIFrame<Raw> {
 }
 
 impl<Raw: RawFrame> AsFFIWritable<Raw> for Option<NDIFrame<Raw>> {
-    fn to_ffi_frame_ptr(&mut self) -> *mut Raw {
+    fn to_ffi_recv_frame_ptr(&mut self) -> *mut Raw {
         if let Some(frame) = self {
-            frame.to_ffi_frame_ptr()
+            frame.to_ffi_recv_frame_ptr()
         } else {
             std::ptr::null_mut()
         }
@@ -78,11 +78,35 @@ impl<Raw: RawFrame> AsFFIWritable<Raw> for Option<NDIFrame<Raw>> {
 }
 
 impl<Raw: RawFrame> AsFFIWritable<Raw> for Option<&mut NDIFrame<Raw>> {
-    fn to_ffi_frame_ptr(&mut self) -> *mut Raw {
+    fn to_ffi_recv_frame_ptr(&mut self) -> *mut Raw {
         if let Some(frame) = self {
-            frame.to_ffi_frame_ptr()
+            frame.to_ffi_recv_frame_ptr()
         } else {
             std::ptr::null_mut()
         }
     }
+}
+
+pub(crate) trait AsFFIReadable<T: RawFrame> {
+    fn to_ffi_send_frame_ptr(&self) -> Result<*const T, FFIReadablePtrError>;
+}
+
+impl<Raw: RawFrame> AsFFIReadable<Raw> for NDIFrame<Raw> {
+    fn to_ffi_send_frame_ptr(&self) -> Result<*const Raw, FFIReadablePtrError> {
+        if self.is_ffi_readable() {
+            let ptr: *const Raw = &self.raw;
+            assert!(!ptr.is_null());
+            Ok(ptr)
+        } else {
+            Err(FFIReadablePtrError::NotReadable(
+                self.alloc.reason_for_not_ffi_writable(),
+            ))
+        }
+    }
+}
+
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum FFIReadablePtrError {
+    NotReadable(&'static str),
 }

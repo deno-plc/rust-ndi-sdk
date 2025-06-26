@@ -9,14 +9,21 @@ impl RawFrameInner for NDIRawAudioFrame {
         unsafe { bindings::NDIlib_recv_free_audio_v3(recv, self) }
     }
 
+    #[inline]
+    unsafe fn drop_with_sender(&mut self, _sender: bindings::NDIlib_send_instance_t) {
+        panic!(
+            "NDIRawAudioFrame cannot be dropped with a sender as it cannot be received by the sender."
+        )
+    }
+
     fn assert_unwritten(&self) {
         assert!(
             self.p_data.is_null(),
-            "NDIRawAudioFrame data is not null, but should be. This is a bug, most likely due to an FFI contract violation."
+            "[Fatal FFI Error] NDIRawAudioFrame data is not null, but should be."
         );
         assert!(
             self.p_metadata.is_null(),
-            "NDIRawAudioFrame metadata is not null, but should be. This is a bug, most likely due to an FFI contract violation."
+            "[Fatal FFI Error] NDIRawAudioFrame metadata is not null, but should be."
         );
     }
 }
@@ -27,7 +34,7 @@ pub type AudioFrame = NDIFrame<NDIRawAudioFrame>;
 
 impl NDIFrameExt<NDIRawAudioFrame> for AudioFrame {
     fn data_valid(&self) -> bool {
-        self.raw.p_data.is_null() && self.alloc != FrameDataDropGuard::NullPtr
+        !self.raw.p_data.is_null() && self.alloc != FrameDataDropGuard::NullPtr
     }
 
     fn clear(&mut self) {

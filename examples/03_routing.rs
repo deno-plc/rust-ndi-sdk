@@ -29,7 +29,7 @@ fn main() {
         }
 
         if source_list.is_empty() {
-            finder.blocking_wait_for_change(Duration::from_secs(1));
+            finder.wait_for_change(Duration::from_secs(1));
         }
     }
 

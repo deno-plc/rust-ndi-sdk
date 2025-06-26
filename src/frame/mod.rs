@@ -13,6 +13,7 @@ pub trait RawFrame: RawFrameInner {}
 
 pub(crate) trait RawFrameInner {
     unsafe fn drop_with_recv(&mut self, recv: bindings::NDIlib_recv_instance_t);
+    unsafe fn drop_with_sender(&mut self, recv: bindings::NDIlib_send_instance_t);
     fn assert_unwritten(&self);
 }
 

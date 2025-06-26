@@ -11,7 +11,7 @@ use crate::{
 #[non_exhaustive]
 #[allow(non_camel_case_types)]
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
-pub enum NDIColorFormat {
+pub enum NDIPreferredColorFormat {
     #[default]
     Fastest = bindings::NDIlib_recv_color_format_e_NDIlib_recv_color_format_fastest,
     Best = bindings::NDIlib_recv_color_format_e_NDIlib_recv_color_format_best,
@@ -22,7 +22,7 @@ pub enum NDIColorFormat {
     UYVY_RGBA = bindings::NDIlib_recv_color_format_e_NDIlib_recv_color_format_UYVY_RGBA,
 }
 
-impl NDIColorFormat {
+impl NDIPreferredColorFormat {
     pub fn to_ffi(self) -> NDIlib_recv_color_format_e {
         self.into()
     }
@@ -34,9 +34,11 @@ impl NDIColorFormat {
     /// None indicates that the resulting FourCC type cannot statically be known
     pub const fn without_alpha_four_cc(self) -> Option<FourCCVideo> {
         match self {
-            NDIColorFormat::BGRX_BGRA => Some(FourCCVideo::BGRX),
-            NDIColorFormat::RGBX_RGBA => Some(FourCCVideo::RGBX),
-            NDIColorFormat::UYVY_BGRA | NDIColorFormat::UYVY_RGBA => Some(FourCCVideo::UYVY),
+            NDIPreferredColorFormat::BGRX_BGRA => Some(FourCCVideo::BGRX),
+            NDIPreferredColorFormat::RGBX_RGBA => Some(FourCCVideo::RGBX),
+            NDIPreferredColorFormat::UYVY_BGRA | NDIPreferredColorFormat::UYVY_RGBA => {
+                Some(FourCCVideo::UYVY)
+            }
             _ => None,
         }
     }
@@ -44,8 +46,12 @@ impl NDIColorFormat {
     /// None indicates that the resulting FourCC type cannot statically be known
     pub const fn with_alpha_four_cc(self) -> Option<FourCCVideo> {
         match self {
-            NDIColorFormat::BGRX_BGRA | NDIColorFormat::UYVY_BGRA => Some(FourCCVideo::BGRA),
-            NDIColorFormat::RGBX_RGBA | NDIColorFormat::UYVY_RGBA => Some(FourCCVideo::RGBA),
+            NDIPreferredColorFormat::BGRX_BGRA | NDIPreferredColorFormat::UYVY_BGRA => {
+                Some(FourCCVideo::BGRA)
+            }
+            NDIPreferredColorFormat::RGBX_RGBA | NDIPreferredColorFormat::UYVY_RGBA => {
+                Some(FourCCVideo::RGBA)
+            }
             _ => None,
         }
     }
@@ -56,7 +62,7 @@ impl NDIColorFormat {
         without_alpha: Option<FourCCVideo>,
     ) -> Result<Self, FromFourCCError> {
         use FourCCVideo::*;
-        use NDIColorFormat::*;
+        use NDIPreferredColorFormat::*;
         if let Some(format) = with_alpha {
             match format {
                 BGRA | RGBA => {}
@@ -140,7 +146,7 @@ impl NDIBandwidthMode {
 
 #[repr(i32)]
 #[non_exhaustive]
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 pub enum NDIFieldedFrameMode {
     #[default]
     Progressive = bindings::NDIlib_frame_format_type_e_NDIlib_frame_format_type_progressive,
@@ -160,5 +166,20 @@ impl NDIFieldedFrameMode {
 
     pub fn from_ffi(value: NDIlib_frame_format_type_e) -> Option<Self> {
         Self::try_from_primitive(value).ok()
+    }
+
+    pub const fn is_progressive(self) -> bool {
+        matches!(self, NDIFieldedFrameMode::Progressive)
+    }
+
+    pub const fn is_fielded(self) -> bool {
+        !self.is_progressive()
+    }
+
+    pub const fn is_single_field(self) -> bool {
+        matches!(
+            self,
+            NDIFieldedFrameMode::Field0 | NDIFieldedFrameMode::Field1
+        )
     }
 }

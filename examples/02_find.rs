@@ -23,7 +23,7 @@ fn main() {
 
     let start = Instant::now();
 
-    let duration = Duration::from_secs(2);
+    let duration = Duration::from_secs(3);
 
     while start.elapsed() < duration {
         let sources = finder.get_source_iter().unwrap();
@@ -38,7 +38,7 @@ fn main() {
         let elapsed = start.elapsed();
 
         if duration > elapsed {
-            finder.blocking_wait_for_change(duration - elapsed);
+            finder.wait_for_change(duration - elapsed);
         }
     }
 

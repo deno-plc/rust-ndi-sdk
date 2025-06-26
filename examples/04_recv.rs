@@ -1,11 +1,11 @@
 use std::{env, time::Duration};
 
 use ndi_sdk_sys::{
-    enums::NDIColorFormat,
+    enums::NDIPreferredColorFormat,
     four_cc::FourCCVideo,
     frame::{metadata::MetadataFrame, video::VideoFrame},
     receiver::{NDIReceiverBuilder, NDIRecvType},
-    structs::NDISource,
+    source::NDISource,
     *,
 };
 
@@ -28,7 +28,8 @@ fn main() {
         .source(NDISource::from_name(&source_name))
         .allow_fielded_video(false)
         .color_format(
-            NDIColorFormat::from_four_cc(Some(FourCCVideo::RGBA), Some(FourCCVideo::RGBX)).unwrap(),
+            NDIPreferredColorFormat::from_four_cc(Some(FourCCVideo::RGBA), Some(FourCCVideo::RGBX))
+                .unwrap(),
         )
         .build()
         .unwrap();
@@ -45,14 +46,17 @@ fn main() {
         ) {
             NDIRecvType::Video => {
                 println!("Received video frame {:?}", video);
-                let data = video.video_data();
-                if let Some(data) = data {
-                    println!("Video data: {:?} ...", &data[0..16]);
+                if let Some((data, info)) = video.video_data() {
+                    println!("Video data: {:?}", &data[0..16]);
+                    println!("Buffer info: {:?}", info);
                 }
                 video = VideoFrame::new();
             }
             NDIRecvType::Metadata => {
-                println!("Received metadata frame");
+                println!(
+                    "Received metadata frame {}",
+                    metadata.to_str().unwrap().to_string_lossy().trim()
+                );
                 metadata = MetadataFrame::new();
             }
             NDIRecvType::StatusChange => {
