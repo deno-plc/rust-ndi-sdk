@@ -8,8 +8,8 @@ pub use crate::bindings::NDIlib_video_frame_v2_t as NDIRawVideoFrame;
 use crate::{
     bindings,
     enums::NDIFieldedFrameMode,
-    four_cc::{BufferInfo, FourCCVideo},
-    structs::Resolution,
+    four_cc::FourCCVideo,
+    structs::{buffer_info::BufferInfo, resolution::Resolution},
     timecode::NDITime,
 };
 
@@ -108,7 +108,7 @@ impl VideoFrame {
             self.raw.p_data = ptr;
             self.raw.FourCC = four_cc.to_ffi();
             unsafe {
-                self.set_lib_stride(info.stride as i32);
+                self.set_lib_stride(info.line_stride as i32);
             }
             Ok(())
         } else {
@@ -188,7 +188,7 @@ impl VideoFrame {
             .and_then(|cc| cc.buffer_info(self.resolution(), self.frame_format()))
         {
             assert_eq!(
-                info.stride,
+                info.line_stride,
                 self.lib_stride() as usize,
                 "[Fatal FFI Error] Stride mismatch"
             );
@@ -211,7 +211,7 @@ impl VideoFrame {
             .and_then(|cc| cc.buffer_info(self.resolution(), self.frame_format()))
         {
             assert_eq!(
-                info.stride,
+                info.line_stride,
                 self.lib_stride() as usize,
                 "[Fatal FFI Error] Stride mismatch"
             );

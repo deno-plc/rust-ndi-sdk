@@ -13,10 +13,28 @@ pub fn version() -> Option<&'static str> {
     version.to_str().ok()
 }
 
+#[cfg(test)]
+#[test]
+fn test_get_version() {
+    // This test is just to ensure that the version can be retrieved.
+    // It does not check the actual version string.
+    let version = version();
+    assert!(version.is_some(), "Failed to get NDI SDK version");
+}
+
 /// Detect whether the current CPU in the system is capable of running NDILib.
 /// Currently NDILib requires SSE4.2 instructions (see documentation).
 pub fn cpu_supported() -> bool {
     unsafe { bindings::NDIlib_is_supported_CPU() == true }
+}
+
+#[cfg(test)]
+#[test]
+fn test_cpu_supported() {
+    assert!(
+        cpu_supported(),
+        "CPU is not supported by NDI SDK, further tests will fail"
+    );
 }
 
 /// This is not actually required, but will start the libraries which might result in a slightly better

@@ -14,7 +14,7 @@ use crate::{
         video::VideoFrame,
     },
     source::NDISourceLike,
-    structs::Tally,
+    structs::tally::Tally,
 };
 
 #[non_exhaustive]

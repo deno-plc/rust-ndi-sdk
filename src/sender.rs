@@ -10,7 +10,7 @@ use crate::{
         video::VideoFrame,
     },
     source::{NDISourceLike, NDISourceRef},
-    structs::{BlockingUpdate, Tally},
+    structs::{BlockingUpdate, tally::Tally},
 };
 
 #[non_exhaustive]

@@ -5,7 +5,7 @@ use num_enum::{IntoPrimitive, TryFromPrimitive};
 use crate::{
     bindings::{self, NDIlib_FourCC_audio_type_e, NDIlib_FourCC_video_type_e},
     enums::NDIFieldedFrameMode,
-    structs::Resolution,
+    structs::{buffer_info::BufferInfo, resolution::Resolution, subsampling::Subsampling},
 };
 
 #[cfg(test)]
@@ -54,22 +54,24 @@ impl FourCCVideo {
         field_mode: NDIFieldedFrameMode,
     ) -> Option<BufferInfo> {
         use FourCCVideo::*;
-        let mut size_per_pixel = 0;
+        let mut pixel_stride = 0;
         let mut valid = false;
+        let mut subsampling = Subsampling::default();
         match self {
             UYVY => {
-                size_per_pixel = 2;
+                pixel_stride = 2;
+                subsampling = Subsampling::new(4, 2, 2);
                 valid = true;
             }
             BGRA | BGRX | RGBA | RGBX => {
-                size_per_pixel = 4;
+                pixel_stride = 4;
                 valid = true;
             }
             _ => (),
         }
 
         if valid {
-            let size = resolution.pixels() * size_per_pixel;
+            let size = resolution.pixels() * pixel_stride;
 
             Some(BufferInfo {
                 size: if field_mode.is_single_field() {
@@ -77,23 +79,15 @@ impl FourCCVideo {
                 } else {
                     size
                 },
-                stride: resolution.x * size_per_pixel,
+                line_stride: resolution.x * pixel_stride,
                 resolution,
                 field_mode,
+                subsampling,
             })
         } else {
             None
         }
     }
-}
-
-#[non_exhaustive]
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
-pub struct BufferInfo {
-    pub size: usize,
-    pub stride: usize,
-    pub resolution: Resolution,
-    pub field_mode: NDIFieldedFrameMode,
 }
 
 #[repr(i32)]
