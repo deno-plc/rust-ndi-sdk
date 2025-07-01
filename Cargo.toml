@@ -1,7 +1,12 @@
 [package]
 name = "ndi-sdk-sys"
-version = "0.1.0"
+version = "0.0.1-alpha.1"
 edition = "2024"
+description = "Rust bindings for the NDI SDK"
+readme = "README.md"
+repository = "https://github.com/deno-plc/rust-ndi-sdk"
+license = "GPL-3.0-or-later"
+keywords = ["ndi", "video"]
 
 [features]
 strict_assertions = []
