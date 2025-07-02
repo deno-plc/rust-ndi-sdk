@@ -96,6 +96,17 @@ impl FrameDataDropGuard {
         }
     }
 
+    /// Generate Error message
+    /// panics if the frame is readable
+    pub fn reason_for_not_ffi_readable(&self) -> &'static str {
+        match self {
+            FrameDataDropGuard::NullPtr => "Frame is not allocated",
+            _ => {
+                panic!("Frame is ffi readable, but trying to get reason why not")
+            }
+        }
+    }
+
     /// Drop the buffer, freeing the memory if necessary
     pub unsafe fn drop_buffer(&mut self, raw: &mut impl RawFrame) {
         if let FrameDataDropGuard::Receiver(recv) = self {

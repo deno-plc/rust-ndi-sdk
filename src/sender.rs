@@ -237,6 +237,7 @@ impl NDISender {
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
 pub enum SendFrameError {
     NotSendable(&'static str),
 }

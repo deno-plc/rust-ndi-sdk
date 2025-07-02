@@ -99,7 +99,7 @@ impl<Raw: RawFrame> AsFFIReadable<Raw> for NDIFrame<Raw> {
             Ok(ptr)
         } else {
             Err(FFIReadablePtrError::NotReadable(
-                self.alloc.reason_for_not_ffi_writable(),
+                self.alloc.reason_for_not_ffi_readable(),
             ))
         }
     }

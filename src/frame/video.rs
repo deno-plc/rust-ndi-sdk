@@ -109,6 +109,7 @@ impl VideoFrame {
             self.raw.FourCC = four_cc.to_ffi();
             unsafe {
                 self.set_lib_stride(info.line_stride as i32);
+                self.set_resolution(resolution);
             }
             Ok(())
         } else {
