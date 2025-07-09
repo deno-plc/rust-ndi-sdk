@@ -10,9 +10,11 @@ keywords = ["ndi", "video"]
 
 [features]
 strict_assertions = []
+docsrs = []
 
 [build-dependencies]
 bindgen = "0.71"
+regex = "1.11.1"
 
 [dependencies]
 num = "0.4.3"

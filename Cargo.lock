@@ -159,6 +159,7 @@ dependencies = [
  "bindgen",
  "num",
  "num_enum",
+ "regex",
  "static_assertions",
  "strum",
 ]

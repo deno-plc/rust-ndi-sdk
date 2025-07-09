@@ -4,5 +4,10 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
 #![allow(clippy::all)]
+#![allow(unused_variables)]
 
+#[cfg(not(any(docsrs, feature = "docsrs")))]
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
+
+#[cfg(any(docsrs, feature = "docsrs"))]
+include!("./bindings/bindings.docsrs.rs.bin");
