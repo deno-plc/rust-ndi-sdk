@@ -1,6 +1,6 @@
 [package]
 name = "ndi-sdk-sys"
-version = "0.0.1-alpha.1"
+version = "0.0.1-alpha.2"
 edition = "2024"
 description = "Rust bindings for the NDI SDK"
 readme = "README.md"
