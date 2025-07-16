@@ -52,9 +52,10 @@ fn windows() {
 fn neutral_generate_bindings(builder: Builder) {
     let mut bindings = builder
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
+        .blocklist_item("NDIlib_v6__bindgen_ty_[0-9]+")
         .blocklist_item("NDIlib_v5__bindgen_ty_[0-9]+");
 
-    for v in ["v5", "v4_5", "v4", "v3", "v2"] {
+    for v in ["v6", "v5", "v4_5", "v4", "v3", "v2"] {
         bindings = bindings
             .blocklist_item(format!("NDIlib_{}", v))
             .blocklist_function(format!("NDIlib_{}_load", v));
@@ -65,6 +66,9 @@ fn neutral_generate_bindings(builder: Builder) {
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
 
     let default_bindings = bindings.to_string();
+
+    // fs::write("./src/bindings/bindings.full.rs.bin", &default_bindings)
+    //     .expect("Couldn't write docsrs bindings!");
 
     let stub_bindings = stub_bindings(default_bindings.clone());
 
@@ -100,6 +104,9 @@ fn stub_bindings(mut bindings: String) -> String {
             }
         })
         .to_string();
+
+    // fs::write("./src/bindings/bindings.test.rs.bin", &bindings)
+    //     .expect("Couldn't write test bindings!");
 
     assert!(
         replacements > 0,

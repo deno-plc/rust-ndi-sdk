@@ -63,6 +63,7 @@ pub const NDIlib_frame_type_e_NDIlib_frame_type_audio: NDIlib_frame_type_e = 2;
 pub const NDIlib_frame_type_e_NDIlib_frame_type_metadata: NDIlib_frame_type_e = 3;
 pub const NDIlib_frame_type_e_NDIlib_frame_type_error: NDIlib_frame_type_e = 4;
 pub const NDIlib_frame_type_e_NDIlib_frame_type_status_change: NDIlib_frame_type_e = 100;
+pub const NDIlib_frame_type_e_NDIlib_frame_type_source_change: NDIlib_frame_type_e = 101;
 pub const NDIlib_frame_type_e_NDIlib_frame_type_max: NDIlib_frame_type_e = 2147483647;
 pub type NDIlib_frame_type_e = ::std::os::raw::c_int;
 pub const NDIlib_FourCC_video_type_e_NDIlib_FourCC_video_type_UYVY: NDIlib_FourCC_video_type_e =
@@ -555,6 +556,9 @@ pub unsafe fn NDIlib_recv_get_no_connections(        p_instance: NDIlib_recv_ins
 pub unsafe fn NDIlib_recv_get_web_control(        p_instance: NDIlib_recv_instance_t,    ) -> *const ::std::os::raw::c_char {
     unimplemented!("Stub bindings")
 }
+pub unsafe fn NDIlib_recv_get_source_name(        p_instance: NDIlib_recv_instance_t,        p_source_name: *mut *const ::std::os::raw::c_char,        timeout_in_ms: u32,    ) -> bool {
+    unimplemented!("Stub bindings")
+}
 pub unsafe fn NDIlib_recv_ptz_is_supported(p_instance: NDIlib_recv_instance_t) -> bool {
     unimplemented!("Stub bindings")
 }
@@ -651,6 +655,126 @@ const _: () = {
         [::std::mem::offset_of!(NDIlib_recv_recording_time_t, last_time) - 16usize];
 };
 pub unsafe fn NDIlib_recv_recording_get_times(        p_instance: NDIlib_recv_instance_t,        p_times: *mut NDIlib_recv_recording_time_t,    ) -> bool {
+    unimplemented!("Stub bindings")
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct NDIlib_recv_advertiser_instance_type {
+    _unused: [u8; 0],
+}
+pub type NDIlib_recv_advertiser_instance_t = *mut NDIlib_recv_advertiser_instance_type;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct NDIlib_recv_advertiser_create_t {
+    pub p_url_address: *const ::std::os::raw::c_char,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of NDIlib_recv_advertiser_create_t"]
+        [::std::mem::size_of::<NDIlib_recv_advertiser_create_t>() - 8usize];
+    ["Alignment of NDIlib_recv_advertiser_create_t"]
+        [::std::mem::align_of::<NDIlib_recv_advertiser_create_t>() - 8usize];
+    ["Offset of field: NDIlib_recv_advertiser_create_t::p_url_address"]
+        [::std::mem::offset_of!(NDIlib_recv_advertiser_create_t, p_url_address) - 0usize];
+};
+pub unsafe fn NDIlib_recv_advertiser_create(        p_create_settings: *const NDIlib_recv_advertiser_create_t,    ) -> NDIlib_recv_advertiser_instance_t {
+    unimplemented!("Stub bindings")
+}
+pub unsafe fn NDIlib_recv_advertiser_destroy(p_instance: NDIlib_recv_advertiser_instance_t) {
+    unimplemented!("Stub bindings")
+}
+pub unsafe fn NDIlib_recv_advertiser_add_receiver(        p_instance: NDIlib_recv_advertiser_instance_t,        p_receiver: NDIlib_recv_instance_t,        allow_controlling: bool,        allow_monitoring: bool,        p_input_group_name: *const ::std::os::raw::c_char,    ) -> bool {
+    unimplemented!("Stub bindings")
+}
+pub unsafe fn NDIlib_recv_advertiser_del_receiver(        p_instance: NDIlib_recv_advertiser_instance_t,        p_receiver: NDIlib_recv_instance_t,    ) -> bool {
+    unimplemented!("Stub bindings")
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct NDIlib_recv_listener_instance_type {
+    _unused: [u8; 0],
+}
+pub type NDIlib_recv_listener_instance_t = *mut NDIlib_recv_listener_instance_type;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct NDIlib_recv_listener_create_t {
+    pub p_url_address: *const ::std::os::raw::c_char,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of NDIlib_recv_listener_create_t"]
+        [::std::mem::size_of::<NDIlib_recv_listener_create_t>() - 8usize];
+    ["Alignment of NDIlib_recv_listener_create_t"]
+        [::std::mem::align_of::<NDIlib_recv_listener_create_t>() - 8usize];
+    ["Offset of field: NDIlib_recv_listener_create_t::p_url_address"]
+        [::std::mem::offset_of!(NDIlib_recv_listener_create_t, p_url_address) - 0usize];
+};
+pub unsafe fn NDIlib_recv_listener_create(        p_create_settings: *const NDIlib_recv_listener_create_t,    ) -> NDIlib_recv_listener_instance_t {
+    unimplemented!("Stub bindings")
+}
+pub unsafe fn NDIlib_recv_listener_destroy(p_instance: NDIlib_recv_listener_instance_t) {
+    unimplemented!("Stub bindings")
+}
+pub unsafe fn NDIlib_recv_listener_is_connected(p_instance: NDIlib_recv_listener_instance_t) -> bool {
+    unimplemented!("Stub bindings")
+}
+pub unsafe fn NDIlib_recv_listener_get_server_url(        p_instance: NDIlib_recv_listener_instance_t,    ) -> *const ::std::os::raw::c_char {
+    unimplemented!("Stub bindings")
+}
+pub const NDIlib_receiver_type_e_NDIlib_receiver_type_none: NDIlib_receiver_type_e = 0;
+pub const NDIlib_receiver_type_e_NDIlib_receiver_type_metadata: NDIlib_receiver_type_e = 1;
+pub const NDIlib_receiver_type_e_NDIlib_receiver_type_video: NDIlib_receiver_type_e = 2;
+pub const NDIlib_receiver_type_e_NDIlib_receiver_type_audio: NDIlib_receiver_type_e = 3;
+pub const NDIlib_receiver_type_e_NDIlib_receiver_type_max: NDIlib_receiver_type_e = 2147483647;
+pub type NDIlib_receiver_type_e = ::std::os::raw::c_int;
+pub const NDIlib_receiver_command_e_NDIlib_receiver_command_none: NDIlib_receiver_command_e = 0;
+pub const NDIlib_receiver_command_e_NDIlib_receiver_command_connect: NDIlib_receiver_command_e = 1;
+pub const NDIlib_receiver_command_e_NDIlib_receiver_command_max: NDIlib_receiver_command_e =
+    2147483647;
+pub type NDIlib_receiver_command_e = ::std::os::raw::c_int;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct NDIlib_receiver_t {
+    pub p_uuid: *const ::std::os::raw::c_char,
+    pub p_name: *const ::std::os::raw::c_char,
+    pub p_input_uuid: *const ::std::os::raw::c_char,
+    pub p_input_name: *const ::std::os::raw::c_char,
+    pub p_address: *const ::std::os::raw::c_char,
+    pub p_streams: *mut NDIlib_receiver_type_e,
+    pub num_streams: u32,
+    pub p_commands: *mut NDIlib_receiver_command_e,
+    pub num_commands: u32,
+    pub events_subscribed: bool,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of NDIlib_receiver_t"][::std::mem::size_of::<NDIlib_receiver_t>() - 72usize];
+    ["Alignment of NDIlib_receiver_t"][::std::mem::align_of::<NDIlib_receiver_t>() - 8usize];
+    ["Offset of field: NDIlib_receiver_t::p_uuid"]
+        [::std::mem::offset_of!(NDIlib_receiver_t, p_uuid) - 0usize];
+    ["Offset of field: NDIlib_receiver_t::p_name"]
+        [::std::mem::offset_of!(NDIlib_receiver_t, p_name) - 8usize];
+    ["Offset of field: NDIlib_receiver_t::p_input_uuid"]
+        [::std::mem::offset_of!(NDIlib_receiver_t, p_input_uuid) - 16usize];
+    ["Offset of field: NDIlib_receiver_t::p_input_name"]
+        [::std::mem::offset_of!(NDIlib_receiver_t, p_input_name) - 24usize];
+    ["Offset of field: NDIlib_receiver_t::p_address"]
+        [::std::mem::offset_of!(NDIlib_receiver_t, p_address) - 32usize];
+    ["Offset of field: NDIlib_receiver_t::p_streams"]
+        [::std::mem::offset_of!(NDIlib_receiver_t, p_streams) - 40usize];
+    ["Offset of field: NDIlib_receiver_t::num_streams"]
+        [::std::mem::offset_of!(NDIlib_receiver_t, num_streams) - 48usize];
+    ["Offset of field: NDIlib_receiver_t::p_commands"]
+        [::std::mem::offset_of!(NDIlib_receiver_t, p_commands) - 56usize];
+    ["Offset of field: NDIlib_receiver_t::num_commands"]
+        [::std::mem::offset_of!(NDIlib_receiver_t, num_commands) - 64usize];
+    ["Offset of field: NDIlib_receiver_t::events_subscribed"]
+        [::std::mem::offset_of!(NDIlib_receiver_t, events_subscribed) - 68usize];
+};
+pub unsafe fn NDIlib_recv_listener_get_receivers(        p_instance: NDIlib_recv_listener_instance_t,        p_num_receivers: *mut u32,    ) -> *const NDIlib_receiver_t {
+    unimplemented!("Stub bindings")
+}
+pub unsafe fn NDIlib_recv_listener_wait_for_receivers(        p_instance: NDIlib_recv_listener_instance_t,        timeout_in_ms: u32,    ) -> bool {
     unimplemented!("Stub bindings")
 }
 #[repr(C)]

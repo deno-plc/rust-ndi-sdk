@@ -17,7 +17,7 @@ high-performance video, audio, and metadata transmission over IP networks.
 
 ## Version compatibility
 
-This crate is currently tested against SDK version 6.1.1.0
+This crate is currently tested against SDK version 6.2.0.3
 
 The raw bindings are generated from the header files in the SDK installation
 directory, this way generated code will always match the version it is compiled
