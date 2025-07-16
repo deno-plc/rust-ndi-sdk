@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 use std::fmt::Display;
 
+/// Describes the chroma subsampling system
 #[derive(Clone, Copy, Hash, PartialEq, Eq)]
 pub struct Subsampling {
     pub x_ref: u8,
@@ -63,7 +64,7 @@ impl Subsampling {
             "Subsampling must be regular to get x grouping"
         );
 
-        self.x_samples / self.x_ref
+        self.x_ref / self.x_samples
     }
 
     pub fn y_grouping(&self) -> u8 {
@@ -72,7 +73,16 @@ impl Subsampling {
             "Subsampling must be regular to get y grouping"
         );
 
-        self.x2_samples / self.x_samples
+        if self.x2_samples == 0 {
+            2
+        } else if self.x_samples == self.x2_samples {
+            1
+        } else {
+            panic!(
+                "Subsampling is not regular, cannot determine y grouping: {}",
+                self
+            )
+        }
     }
 }
 
@@ -83,5 +93,82 @@ impl Default for Subsampling {
             x_samples: 4,
             x2_samples: 4,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Subsampling;
+
+    #[test]
+    fn no_subsampling() {
+        let not_subsampled = Subsampling::new(4, 4, 4);
+        assert!(!not_subsampled.is_subsampled());
+        assert!(not_subsampled.is_regular());
+        assert_eq!(not_subsampled.x_grouping(), 1);
+        assert_eq!(not_subsampled.y_grouping(), 1);
+    }
+
+    #[test]
+    fn subsampling_4_2_2() {
+        let subsampled = Subsampling::new(4, 2, 2);
+        assert!(subsampled.is_subsampled());
+        assert!(subsampled.is_regular());
+        assert_eq!(subsampled.x_grouping(), 2);
+        assert_eq!(subsampled.y_grouping(), 1);
+    }
+
+    #[test]
+    fn subsampling_4_2_0() {
+        let subsampled = Subsampling::new(4, 2, 0);
+        assert!(subsampled.is_subsampled());
+        assert!(subsampled.is_regular());
+        assert_eq!(subsampled.x_grouping(), 2);
+        assert_eq!(subsampled.y_grouping(), 2);
+    }
+
+    #[test]
+    fn subsampling_4_1_1() {
+        let subsampled = Subsampling::new(4, 1, 1);
+        assert!(subsampled.is_subsampled());
+        assert!(subsampled.is_regular());
+        assert_eq!(subsampled.x_grouping(), 4);
+        assert_eq!(subsampled.y_grouping(), 1);
+    }
+
+    #[test]
+    fn subsampling_4_4_0() {
+        let subsampled = Subsampling::new(4, 4, 0);
+        assert!(subsampled.is_subsampled());
+        assert!(subsampled.is_regular());
+        assert_eq!(subsampled.x_grouping(), 1);
+        assert_eq!(subsampled.y_grouping(), 2);
+    }
+
+    #[test]
+    fn irregular_subsampling() {
+        let irregular = Subsampling::new(4, 3, 2);
+        assert!(irregular.is_subsampled());
+        assert!(!irregular.is_regular());
+    }
+
+    #[test]
+    fn zero_reference() {
+        let zero_ref = Subsampling::new(0, 0, 0);
+        assert!(!zero_ref.is_regular());
+    }
+
+    #[test]
+    #[should_panic(expected = "Subsampling must be regular to get x grouping")]
+    fn x_grouping_panics_on_irregular() {
+        let irregular = Subsampling::new(4, 3, 2);
+        let _ = irregular.x_grouping();
+    }
+
+    #[test]
+    #[should_panic(expected = "Subsampling must be regular to get y grouping")]
+    fn y_grouping_panics_on_irregular() {
+        let irregular = Subsampling::new(4, 3, 2);
+        let _ = irregular.y_grouping();
     }
 }

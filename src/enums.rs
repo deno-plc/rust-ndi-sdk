@@ -144,10 +144,13 @@ impl NDIBandwidthMode {
     }
 }
 
+/// Video frames can be fielded (even and odd lines are sent in separate frames), this enum
+/// describes the fielding mode
 #[repr(i32)]
 #[non_exhaustive]
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 pub enum NDIFieldedFrameMode {
+    /// Progressive (non-fielded) video frame.
     #[default]
     Progressive = bindings::NDIlib_frame_format_type_e_NDIlib_frame_format_type_progressive,
     /// This is a frame of video that is comprised of two fields.
@@ -160,11 +163,11 @@ pub enum NDIFieldedFrameMode {
 }
 
 impl NDIFieldedFrameMode {
-    pub fn to_ffi(self) -> NDIlib_frame_format_type_e {
+    pub(crate) fn to_ffi(self) -> NDIlib_frame_format_type_e {
         self.into()
     }
 
-    pub fn from_ffi(value: NDIlib_frame_format_type_e) -> Option<Self> {
+    pub(crate) fn from_ffi(value: NDIlib_frame_format_type_e) -> Option<Self> {
         Self::try_from_primitive(value).ok()
     }
 

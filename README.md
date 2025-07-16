@@ -3,17 +3,22 @@
 [![Crate](https://img.shields.io/crates/v/ndi-sdk-sys.svg)](https://crates.io/crates/ndi-sdk-sys)
 [![Documentation](https://docs.rs/ndi-sdk-sys/badge.svg)](https://docs.rs/ndi-sdk-sys)
 
-(WIP) Safe Rust bindings for the [NDI](https://ndi.video/) SDK, enabling
-high-performance video, audio, and metadata transmission over IP networks.
+(WIP) Safe Rust bindings for the [NDI (ndi.video)](https://ndi.video/) SDK,
+enabling high-performance video, audio, and metadata transmission over IP
+networks.
 
 ## Features
 
 - Safe wrapper around the NDI SDK
 - Currently supports:
-  - Finder API for discovering NDI sources
+  - Finder API for discovering NDI sources on the network
   - Router API for routing NDI streams
   - Sender API for transmitting NDI streams
   - Receiver API for receiving NDI streams
+- Not supported yet:
+  - PTZ Control
+  - FrameSync
+  - Receiver advertisement
 
 ## Version compatibility
 

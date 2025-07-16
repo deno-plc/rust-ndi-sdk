@@ -34,12 +34,13 @@ fn main() {
     loop {
         let (buf, info) = frame.video_data_mut().unwrap();
 
-        let b = (f32::sin(start.elapsed().as_secs_f32()) * 256.0) as u8 + 0xff / 2;
+        let b = (f32::sin(start.elapsed().as_secs_f32()) * 128.0 + 128.0) as u8;
 
         for x in 0..info.resolution.x {
             let r = (x * 0xff / info.resolution.x) as u8;
             for y in 0..info.resolution.y {
                 let offset = (y * info.resolution.x + x) * 4;
+                let g = (y * 0xff / info.resolution.y) as u8;
 
                 let a = 0xff;
                 let g = 0xff - r;

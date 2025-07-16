@@ -43,16 +43,24 @@ impl NDISenderBuilder {
         self
     }
 
+    /// Sets the groups for the sender.
+    /// https://docs.ndi.video/all/developing-with-ndi/sdk/ndi-send#parameters
     pub fn groups(mut self, groups: &str) -> Self {
         self.groups = Some(CString::new(groups).unwrap());
         self
     }
 
+    /// When enabled the SDK will limit the frame rate for video frames.
+    /// The send function will block until the next frame is ready to be sent.
+    /// https://docs.ndi.video/all/developing-with-ndi/sdk/ndi-send#parameters
     pub fn clock_video(mut self, clock_video: bool) -> Self {
         self.clock_video = clock_video;
         self
     }
 
+    /// When enabled the SDK will limit the frame rate for audio frames.
+    /// The send function will block until the next frame is ready to be sent.
+    /// https://docs.ndi.video/all/developing-with-ndi/sdk/ndi-send#parameters
     pub fn clock_audio(mut self, clock_audio: bool) -> Self {
         self.clock_audio = clock_audio;
         self
@@ -60,7 +68,7 @@ impl NDISenderBuilder {
 }
 
 impl NDISenderBuilder {
-    pub fn build(self) -> Result<NDISender, ()> {
+    pub fn build(self) -> Result<NDISender, NDISenderBuilderError> {
         let options = bindings::NDIlib_send_create_t {
             p_ndi_name: self.name.as_ref().map_or(std::ptr::null(), |s| s.as_ptr()),
             p_groups: self
@@ -74,11 +82,17 @@ impl NDISenderBuilder {
         let handle = unsafe { bindings::NDIlib_send_create(&options) };
 
         if handle.is_null() {
-            Err(())
+            Err(NDISenderBuilderError::CreationFailed)
         } else {
             Ok(NDISender { handle })
         }
     }
+}
+
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NDISenderBuilderError {
+    CreationFailed,
 }
 
 pub struct NDISender {
@@ -130,6 +144,7 @@ impl NDISender {
         Ok(())
     }
 
+    /// Receives a metadata frame, works exactly like [super::receiver::NDIReceiver::recv]
     pub fn recv_metadata(
         &self,
         meta: &mut MetadataFrame,
@@ -165,6 +180,7 @@ impl NDISender {
         }
     }
 
+    /// Returns the current tally state.
     pub fn get_tally(&self) -> Tally {
         let mut tally = bindings::NDIlib_tally_t {
             on_program: false,
@@ -185,11 +201,13 @@ impl NDISender {
             on_preview: false,
         };
 
-        let changed = unsafe { bindings::NDIlib_send_get_tally(self.handle, &mut tally, timeout) };
+        let changed =
+            unsafe { bindings::NDIlib_send_get_tally(self.handle, &mut tally, timeout) == true };
 
         BlockingUpdate::new(Tally::from_ffi(&tally), changed)
     }
 
+    /// Blocks until the number of connections changes or the timeout is reached.
     pub fn get_num_connections_update(&self, timeout: Duration) -> usize {
         let timeout: u32 = timeout.as_millis().try_into().unwrap_or(u32::MAX);
 
@@ -200,12 +218,15 @@ impl NDISender {
             .expect("[Fatal FFI Error] NDI SDK returned an invalid number of connections")
     }
 
+    /// Sets the failover source, which is used when the receiver cannot receive frames from this source anymore.
+    /// https://docs.ndi.video/all/developing-with-ndi/sdk/ndi-send#failsafe
     pub fn set_failover(&self, failover_src: impl NDISourceLike) {
         failover_src.with_descriptor(|src_ptr| {
             unsafe { bindings::NDIlib_send_set_failover(self.handle, src_ptr) };
         });
     }
 
+    /// Get this sources description (includes the name)
     pub fn get_source<'a>(&'a self) -> NDISourceRef<'a> {
         let source = unsafe { bindings::NDIlib_send_get_source_name(self.handle) };
 
@@ -218,10 +239,7 @@ impl NDISender {
         }
     }
 
-    pub fn clear_connection_metadata(&self) {
-        unsafe { bindings::NDIlib_send_clear_connection_metadata(self.handle) };
-    }
-
+    /// Adds connection metadata which will be sent to every connection in the future.
     pub fn add_connection_metadata(&self, meta: &MetadataFrame) -> Result<(), SendFrameError> {
         let ptr = meta.to_ffi_send_frame_ptr().map_err(|err| match err {
             crate::frame::generic::FFIReadablePtrError::NotReadable(desc) => {
@@ -234,6 +252,11 @@ impl NDISender {
         }
 
         Ok(())
+    }
+
+    /// Removes all connection metadata that was previously added.
+    pub fn clear_connection_metadata(&self) {
+        unsafe { bindings::NDIlib_send_clear_connection_metadata(self.handle) };
     }
 }
 

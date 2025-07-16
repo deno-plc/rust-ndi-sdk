@@ -6,7 +6,7 @@ use super::RawFrame;
 
 /// Holds the frame allocation
 #[derive(PartialEq, Eq)]
-pub enum FrameDataDropGuard {
+pub(crate) enum FrameDataDropGuard {
     NullPtr,
     Receiver(bindings::NDIlib_recv_instance_t),
     Sender(bindings::NDIlib_send_instance_t),

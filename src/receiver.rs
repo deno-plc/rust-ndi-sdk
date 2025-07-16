@@ -34,7 +34,7 @@ impl<Source: NDISourceLike> Default for NDIReceiverBuilder<Source> {
             name: None,
             color_format: NDIPreferredColorFormat::default(),
             bandwidth: NDIBandwidthMode::default(),
-            allow_fielded_video: true,
+            allow_fielded_video: false,
         }
     }
 }
@@ -44,32 +44,40 @@ impl<Source: NDISourceLike> NDIReceiverBuilder<Source> {
         Self::default()
     }
 
+    /// Sets the source to connect to. Can be left out to select the source later.
     pub fn source(mut self, source: Source) -> Self {
         self.source = Some(source);
         self
     }
 
+    /// Sets the receiver name. This will be used in future versions of NDI.
     pub fn name(mut self, name: &str) -> Self {
         self.name = Some(CString::new(name).unwrap());
         self
     }
 
+    /// Sets the preferred color format for the receiver.
+    /// Unless you need a specific color format, always use [NDIPreferredColorFormat::Fastest]
     pub fn color_format(mut self, color_format: NDIPreferredColorFormat) -> Self {
         self.color_format = color_format;
         self
     }
 
+    /// Sets the bandwidth mode for the receiver.
+    /// Can be used to use reduced bandwidth for multi-views or metadata-only
     pub fn bandwidth(mut self, bandwidth: NDIBandwidthMode) -> Self {
         self.bandwidth = bandwidth;
         self
     }
 
+    /// Sets whether the receiver should allow fielded video.
+    /// Default is false, only progressive video will be received.
     pub fn allow_fielded_video(mut self, allow: bool) -> Self {
         self.allow_fielded_video = allow;
         self
     }
 
-    pub fn build(self) -> Option<NDIReceiver> {
+    pub fn build(self) -> Result<NDIReceiver, NDIReceiverBuilderError> {
         self.source.with_descriptor(|src_ptr| {
             let options = bindings::NDIlib_recv_create_v3_t {
                 p_ndi_recv_name: self
@@ -96,12 +104,18 @@ impl<Source: NDISourceLike> NDIReceiverBuilder<Source> {
             let handle = unsafe { bindings::NDIlib_recv_create_v3(&options) };
 
             if handle.is_null() {
-                return None;
+                Err(NDIReceiverBuilderError::CreationFailed)
             } else {
-                Some(NDIReceiver { handle })
+                Ok(NDIReceiver { handle })
             }
         })
     }
+}
+
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NDIReceiverBuilderError {
+    CreationFailed,
 }
 
 pub struct NDIReceiver {
@@ -116,18 +130,24 @@ pub enum NDIRecvType {
     Video,
     Audio,
     Metadata,
+    /// No frame was received, most likely because the timeout was reached.
     None,
+    /// The SDK returned a frame type that is not recognized.
     Unknown,
+    /// No frame was received, but the status of the connection changed.
+    /// Things like the web control URL could have changed
     StatusChange,
 }
 
 impl NDIReceiver {
+    /// Switches the receiver to the given source.
     pub fn set_source(&self, source: impl NDISourceLike) {
         source.with_descriptor(|src_ptr| {
             unsafe { bindings::NDIlib_recv_connect(self.handle, src_ptr) };
         });
     }
 
+    /// Tries to read into the given buffers and returns which of these has been written to.
     pub fn recv(
         &self,
         mut video: Option<&mut VideoFrame>,
@@ -272,6 +292,7 @@ impl NDIReceiver {
         }
     }
 
+    /// Sends a metadata frame over the current connection.
     pub fn send_metadata(&self, frame: &MetadataFrame) -> Result<(), SendMetadataError> {
         let ptr = frame.to_ffi_send_frame_ptr().map_err(|err| match err {
             crate::frame::generic::FFIReadablePtrError::NotReadable(desc) => {
@@ -288,6 +309,7 @@ impl NDIReceiver {
         }
     }
 
+    /// Adds connection metadata which will be sent to every connection in the future.
     pub fn add_connection_metadata(&self, frame: &MetadataFrame) -> Result<(), SendMetadataError> {
         let ptr = frame.to_ffi_send_frame_ptr().map_err(|err| match err {
             crate::frame::generic::FFIReadablePtrError::NotReadable(desc) => {
@@ -300,23 +322,28 @@ impl NDIReceiver {
         Ok(())
     }
 
+    /// Removes all connection metadata that was previously added.
     pub fn clear_connection_metadata(&self) {
         unsafe { bindings::NDIlib_recv_clear_connection_metadata(self.handle) };
     }
 
+    /// Sets the tally status for the receiver. This will be merged from all receivers on the same
+    /// source.
     pub fn set_tally(&self, tally: Tally) {
         let tally = tally.to_ffi();
 
         unsafe { bindings::NDIlib_recv_set_tally(self.handle, &tally) };
     }
 
+    /// Returns the current number of connections to the receiver.
     pub fn get_num_connections(&self) -> usize {
         let num_connections = unsafe { bindings::NDIlib_recv_get_no_connections(self.handle) };
         num_connections
             .try_into()
-            .expect("[Fatal FFI Error] NDI SDK returned a negative number of connections")
+            .expect("[Fatal FFI Error] NDI SDK returned a invalid number of connections")
     }
 
+    /// Get the web control URL for the receiver.
     pub fn get_web_control(&self) -> Option<NDIWebControlInfo> {
         let ptr = unsafe { bindings::NDIlib_recv_get_web_control(self.handle) };
 
@@ -341,7 +368,9 @@ impl Drop for NDIReceiver {
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub enum SendMetadataError {
+    /// The metadata could not be sent because it is not readable
     NotSendable(&'static str),
+    /// The metadata could not be sent because the receiver is not connected
     NotConnected,
 }
 
@@ -357,7 +386,7 @@ impl<'a> Drop for NDIWebControlInfo<'a> {
 }
 
 impl<'a> NDIWebControlInfo<'a> {
-    pub fn as_str(&self) -> &'a CStr {
+    pub fn as_cstr(&self) -> &'a CStr {
         self.url
     }
 }

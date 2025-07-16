@@ -7,12 +7,24 @@ pub struct Tally {
 }
 
 impl Tally {
+    pub fn new(program: bool, preview: bool) -> Self {
+        Tally { program, preview }
+    }
+
     pub fn on_program(&self) -> bool {
         self.program
     }
 
+    pub fn set_program(&mut self, on: bool) {
+        self.program = on;
+    }
+
     pub fn on_preview(&self) -> bool {
         self.preview
+    }
+
+    pub fn set_preview(&mut self, on: bool) {
+        self.preview = on;
     }
 
     pub fn is_shown(&self) -> bool {

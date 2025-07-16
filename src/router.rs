@@ -4,6 +4,9 @@ use static_assertions::assert_impl_all;
 
 use crate::{bindings, source::NDISourceLike};
 
+///! NDI Router
+/// https://docs.ndi.video/all/developing-with-ndi/sdk/ndi-routing
+
 #[derive(Debug, Clone)]
 pub struct NDIRouterBuilder {
     name: String,

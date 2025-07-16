@@ -11,6 +11,9 @@ use crate::{
 #[cfg(test)]
 use strum::{EnumIter, IntoEnumIterator};
 
+///! FourCC (Four Character Code) is a sequence of four bytes used to uniquely identify data formats.
+
+/// Possible FourCC values for video frames.
 #[repr(i32)]
 #[non_exhaustive]
 #[allow(non_camel_case_types)]
@@ -31,11 +34,11 @@ pub enum FourCCVideo {
 }
 
 impl FourCCVideo {
-    pub fn to_ffi(self) -> NDIlib_FourCC_video_type_e {
+    pub(crate) fn to_ffi(self) -> NDIlib_FourCC_video_type_e {
         self.into()
     }
 
-    pub fn from_ffi(value: NDIlib_FourCC_video_type_e) -> Option<Self> {
+    pub(crate) fn from_ffi(value: NDIlib_FourCC_video_type_e) -> Option<Self> {
         Self::try_from_primitive(value).ok()
     }
 
@@ -48,6 +51,7 @@ impl FourCCVideo {
         }
     }
 
+    /// Returns information about the memory layout of the frame data
     pub fn buffer_info(
         self,
         resolution: Resolution,
@@ -55,38 +59,34 @@ impl FourCCVideo {
     ) -> Option<BufferInfo> {
         use FourCCVideo::*;
         let mut pixel_stride = 0;
-        let mut valid = false;
         let mut subsampling = Subsampling::default();
+
         match self {
             UYVY => {
                 pixel_stride = 2;
                 subsampling = Subsampling::new(4, 2, 2);
-                valid = true;
+                Some(())
             }
             BGRA | BGRX | RGBA | RGBX => {
                 pixel_stride = 4;
-                valid = true;
+                Some(())
             }
-            _ => (),
-        }
+            _ => None,
+        }?;
 
-        if valid {
-            let size = resolution.pixels() * pixel_stride;
+        let size = resolution.pixels() * pixel_stride;
 
-            Some(BufferInfo {
-                size: if field_mode.is_single_field() {
-                    size / 2
-                } else {
-                    size
-                },
-                line_stride: resolution.x * pixel_stride,
-                resolution,
-                field_mode,
-                subsampling,
-            })
-        } else {
-            None
-        }
+        Some(BufferInfo {
+            size: if field_mode.is_single_field() {
+                size / 2
+            } else {
+                size
+            },
+            line_stride: resolution.x * pixel_stride,
+            resolution,
+            field_mode,
+            subsampling,
+        })
     }
 }
 
