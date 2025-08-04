@@ -25,15 +25,15 @@ networks.
 This crate is currently tested against SDK version 6.2.0.3
 
 The raw bindings are generated from the header files in the SDK installation
-directory, this way generated code will always match the version it is compiled
-with and linked against.
+directory, this way generated code will always match the version on the machine
+it is compiled with and linked against.
 
 ## Platform Support
 
 This crates `build.rs` is currently lacking support for platforms other than
 Windows x64, because I had no time for it so far. If you are working on another
 platform, feel free to add support for it. (It shouldn't be that complicated,
-windows support is less than 40 lines of nearly-boilerplate code)
+windows support is less than 30 lines of nearly-boilerplate code)
 
 ## Installation
 

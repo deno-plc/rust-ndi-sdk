@@ -19,7 +19,7 @@ fn main() {
     if std::env::var("DOCS_RS").is_ok() {
         // uses prebuilt stub bindings
     } else {
-        panic!("This plattform is not supported yet");
+        panic!("This platform is not supported yet");
     }
 }
 
@@ -40,7 +40,7 @@ fn windows() {
             .unwrap(),
     );
 
-    neutral_generate_bindings(bindings);
+    generate_bindings(bindings);
 
     fs::copy(
         ndi_sdk_dir.join("Bin/x64/Processing.NDI.Lib.x64.dll"),
@@ -49,7 +49,7 @@ fn windows() {
     .unwrap();
 }
 
-fn neutral_generate_bindings(builder: Builder) {
+fn generate_bindings(builder: Builder) {
     let mut bindings = builder
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .blocklist_item("NDIlib_v6__bindgen_ty_[0-9]+")
