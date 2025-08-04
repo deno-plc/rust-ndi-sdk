@@ -14,8 +14,6 @@ fn main() {
 
     println!("NDI initialized successfully");
 
-    let mut frame = VideoFrame::new();
-
     let src = NDISenderBuilder::new()
         .name("My Test Source")
         .clock_video(true)
@@ -27,7 +25,11 @@ fn main() {
         src.get_source().name().to_str().unwrap()
     );
 
-    frame.alloc(Resolution::new(1920, 1080), FourCCVideo::RGBX);
+    let mut frame = VideoFrame::new();
+    frame.set_resolution(Resolution::new(1920, 1080)).unwrap();
+    frame.set_four_cc(FourCCVideo::RGBX).unwrap();
+
+    frame.try_alloc().unwrap();
 
     let start = Instant::now();
 
@@ -39,12 +41,10 @@ fn main() {
         for x in 0..info.resolution.x {
             let r = (x * 0xff / info.resolution.x) as u8;
             for y in 0..info.resolution.y {
-                let offset = (y * info.resolution.x + x) * 4;
                 let g = (y * 0xff / info.resolution.y) as u8;
-
                 let a = 0xff;
-                let g = 0xff - r;
 
+                let offset = (y * info.resolution.x + x) * 4;
                 buf[offset + 0] = r;
                 buf[offset + 1] = g;
                 buf[offset + 2] = b;

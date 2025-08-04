@@ -3,6 +3,7 @@ use crate::{
     structs::{resolution::Resolution, subsampling::Subsampling},
 };
 
+/// Holds all information about the memory layout of a video frame buffer.
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub struct BufferInfo {

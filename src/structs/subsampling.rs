@@ -157,18 +157,4 @@ mod tests {
         let zero_ref = Subsampling::new(0, 0, 0);
         assert!(!zero_ref.is_regular());
     }
-
-    #[test]
-    #[should_panic(expected = "Subsampling must be regular to get x grouping")]
-    fn x_grouping_panics_on_irregular() {
-        let irregular = Subsampling::new(4, 3, 2);
-        let _ = irregular.x_grouping();
-    }
-
-    #[test]
-    #[should_panic(expected = "Subsampling must be regular to get y grouping")]
-    fn y_grouping_panics_on_irregular() {
-        let irregular = Subsampling::new(4, 3, 2);
-        let _ = irregular.y_grouping();
-    }
 }

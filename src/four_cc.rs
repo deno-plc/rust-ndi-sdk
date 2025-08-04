@@ -56,7 +56,7 @@ impl FourCCVideo {
         self,
         resolution: Resolution,
         field_mode: NDIFieldedFrameMode,
-    ) -> Option<BufferInfo> {
+    ) -> Result<BufferInfo, BufferInfoError> {
         use FourCCVideo::*;
         let mut pixel_stride = 0;
         let mut subsampling = Subsampling::default();
@@ -65,18 +65,18 @@ impl FourCCVideo {
             UYVY => {
                 pixel_stride = 2;
                 subsampling = Subsampling::new(4, 2, 2);
-                Some(())
+                Ok(())
             }
             BGRA | BGRX | RGBA | RGBX => {
                 pixel_stride = 4;
-                Some(())
+                Ok(())
             }
-            _ => None,
+            cc => Err(BufferInfoError::UnsupportedFourCC(cc)),
         }?;
 
         let size = resolution.pixels() * pixel_stride;
 
-        Some(BufferInfo {
+        Ok(BufferInfo {
             size: if field_mode.is_single_field() {
                 size / 2
             } else {
@@ -88,6 +88,13 @@ impl FourCCVideo {
             subsampling,
         })
     }
+}
+
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BufferInfoError {
+    UnsupportedFourCC(FourCCVideo),
+    UnspecifiedFourCC,
 }
 
 #[repr(i32)]

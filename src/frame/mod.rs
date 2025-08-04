@@ -9,18 +9,10 @@ use crate::bindings;
 pub use generic::NDIFrame;
 
 #[allow(private_bounds)]
-pub trait RawFrame: RawFrameInner {}
+pub trait RawFrame: RawBufferManagement {}
 
-pub(crate) trait RawFrameInner {
+pub(crate) trait RawBufferManagement {
     unsafe fn drop_with_recv(&mut self, recv: bindings::NDIlib_recv_instance_t);
     unsafe fn drop_with_sender(&mut self, recv: bindings::NDIlib_send_instance_t);
     fn assert_unwritten(&self);
-}
-
-pub trait NDIFrameExt<T: RawFrame> {
-    fn data_valid(&self) -> bool;
-
-    /// Frees the buffers
-    /// Note: Other properties like resolution, frame rate and FourCC might or might not be retained
-    fn clear(&mut self);
 }

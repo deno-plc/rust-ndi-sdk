@@ -7,6 +7,9 @@ use crate::{
     four_cc::FourCCVideo,
 };
 
+/// C equivalent: `NDIlib_recv_color_format_e`
+/// This enum describes the preferred color format for receiving video frames.
+/// If you can handle all color formats you should use `Fastest`
 #[repr(i32)]
 #[non_exhaustive]
 #[allow(non_camel_case_types)]
@@ -31,6 +34,7 @@ impl NDIPreferredColorFormat {
         Self::try_from_primitive(value).ok()
     }
 
+    /// Returns the FourCC type that will be used for frames without alpha channel.
     /// None indicates that the resulting FourCC type cannot statically be known
     pub const fn without_alpha_four_cc(self) -> Option<FourCCVideo> {
         match self {
@@ -43,6 +47,7 @@ impl NDIPreferredColorFormat {
         }
     }
 
+    /// Returns the FourCC type that will be used for frames with alpha channel.
     /// None indicates that the resulting FourCC type cannot statically be known
     pub const fn with_alpha_four_cc(self) -> Option<FourCCVideo> {
         match self {
@@ -56,6 +61,8 @@ impl NDIPreferredColorFormat {
         }
     }
 
+    /// Try to create a preferred color format from the given FourCC types.
+    /// only a few combinations are allowed by the SDK, in case of an unsupported combination this will return Err(FromFourCCError::UnsupportedCombination).
     /// A None argument means Don't care
     pub fn from_four_cc(
         with_alpha: Option<FourCCVideo>,

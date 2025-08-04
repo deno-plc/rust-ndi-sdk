@@ -3,6 +3,11 @@ pub mod resolution;
 pub mod subsampling;
 pub mod tally;
 
+pub use buffer_info::*;
+pub use resolution::*;
+pub use subsampling::*;
+pub use tally::*;
+
 pub struct BlockingUpdate<T> {
     pub value: T,
     pub(crate) changed: bool,

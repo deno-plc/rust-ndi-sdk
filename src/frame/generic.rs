@@ -10,14 +10,22 @@ pub struct NDIFrame<Raw: RawFrame, C = ()> {
 }
 
 impl<Raw: RawFrame> NDIFrame<Raw> {
+    /// Checks if this frame can be written/received to by the SDK
     #[inline]
     pub fn is_ffi_writable(&self) -> bool {
         self.alloc.is_ffi_writable()
     }
 
+    /// Checks if this frame can be read/sent by the SDK
     #[inline]
     pub fn is_ffi_readable(&self) -> bool {
         self.alloc.is_ffi_readable()
+    }
+
+    /// Checks if this frame is allocated/can be read by the user code
+    #[inline]
+    pub fn is_allocated(&self) -> bool {
+        self.alloc.is_allocated()
     }
 
     pub(crate) fn assert_unwritten(&self) {
@@ -26,10 +34,6 @@ impl<Raw: RawFrame> NDIFrame<Raw> {
             self.alloc.is_ffi_writable(),
             "NDIFrame is not writable, but should be. This is a bug, most likely due to an FFI contract violation."
         );
-    }
-
-    pub(crate) unsafe fn drop_buffer_backend(&mut self) {
-        unsafe { FrameDataDropGuard::drop_buffer(&mut self.alloc, &mut self.raw) };
     }
 }
 

@@ -1,9 +1,9 @@
-use super::{NDIFrame, NDIFrameExt, RawFrame, RawFrameInner, drop_guard::FrameDataDropGuard};
+use super::{NDIFrame, RawBufferManagement, RawFrame, drop_guard::FrameDataDropGuard};
 
-pub use crate::bindings::NDIlib_audio_frame_v3_t as NDIRawAudioFrame;
+pub(crate) use crate::bindings::NDIlib_audio_frame_v3_t as NDIRawAudioFrame;
 use crate::{bindings, four_cc::FourCCAudio};
 
-impl RawFrameInner for NDIRawAudioFrame {
+impl RawBufferManagement for NDIRawAudioFrame {
     #[inline]
     unsafe fn drop_with_recv(&mut self, recv: bindings::NDIlib_recv_instance_t) {
         unsafe { bindings::NDIlib_recv_free_audio_v3(recv, self) }
@@ -31,18 +31,6 @@ impl RawFrameInner for NDIRawAudioFrame {
 impl RawFrame for NDIRawAudioFrame {}
 
 pub type AudioFrame = NDIFrame<NDIRawAudioFrame>;
-
-impl NDIFrameExt<NDIRawAudioFrame> for AudioFrame {
-    fn data_valid(&self) -> bool {
-        !self.raw.p_data.is_null() && self.alloc != FrameDataDropGuard::NullPtr
-    }
-
-    fn clear(&mut self) {
-        unsafe { self.drop_buffer_backend() };
-        self.raw.p_data = std::ptr::null_mut();
-        self.raw.p_metadata = std::ptr::null_mut();
-    }
-}
 
 impl AudioFrame {
     pub fn new() -> Self {

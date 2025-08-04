@@ -4,18 +4,19 @@ use std::fmt::Debug;
 
 use num::Rational32;
 
-pub use crate::bindings::NDIlib_video_frame_v2_t as NDIRawVideoFrame;
+pub(crate) use crate::bindings::NDIlib_video_frame_v2_t as NDIRawVideoFrame;
 use crate::{
     bindings,
     enums::NDIFieldedFrameMode,
-    four_cc::FourCCVideo,
+    four_cc::{BufferInfoError, FourCCVideo},
     structs::{buffer_info::BufferInfo, resolution::Resolution},
     timecode::NDITime,
+    util::VoidResult,
 };
 
-use super::{NDIFrame, NDIFrameExt, RawFrame, RawFrameInner, drop_guard::FrameDataDropGuard};
+use super::{NDIFrame, RawBufferManagement, RawFrame, drop_guard::FrameDataDropGuard};
 
-impl RawFrameInner for NDIRawVideoFrame {
+impl RawBufferManagement for NDIRawVideoFrame {
     #[inline]
     unsafe fn drop_with_recv(&mut self, recv: bindings::NDIlib_recv_instance_t) {
         unsafe { bindings::NDIlib_recv_free_video_v2(recv, self) }
@@ -42,21 +43,12 @@ impl RawFrameInner for NDIRawVideoFrame {
 
 impl RawFrame for NDIRawVideoFrame {}
 
+/// Represents a video frame in NDI.
+/// C equivalent: `NDIlib_video_frame_v2_t`
 pub type VideoFrame = NDIFrame<NDIRawVideoFrame>;
 
-impl NDIFrameExt<NDIRawVideoFrame> for VideoFrame {
-    fn data_valid(&self) -> bool {
-        !self.raw.p_data.is_null() && self.alloc != FrameDataDropGuard::NullPtr
-    }
-
-    fn clear(&mut self) {
-        unsafe { self.drop_buffer_backend() };
-        self.raw.p_data = std::ptr::null_mut();
-        self.raw.p_metadata = std::ptr::null_mut();
-    }
-}
-
 impl VideoFrame {
+    /// Constructs a new video frame (without allocating a frame buffer)
     pub fn new() -> Self {
         let raw = NDIRawVideoFrame {
             xres: 0,
@@ -81,58 +73,155 @@ impl VideoFrame {
         }
     }
 
-    pub unsafe fn alloc_raw_frame_buffer(
-        &mut self,
-        size: usize,
-        stride: i32,
-        resolution: Resolution,
-    ) {
-        let (alloc, ptr) = FrameDataDropGuard::new_boxed(size);
+    /// Generates a {BufferInfo} for the current resolution/FourCC/field mode
+    pub fn buffer_info(&self) -> Result<BufferInfo, BufferInfoError> {
+        if let Some(cc) = self.four_cc() {
+            cc.buffer_info(self.resolution(), self.field_mode())
+        } else {
+            Err(BufferInfoError::UnspecifiedFourCC)
+        }
+    }
+
+    /// Tries to allocate a frame buffer for the video frame.
+    pub fn try_alloc(&mut self) -> Result<(), VideoFrameAllocationError> {
+        if self.is_allocated() {
+            Err(VideoFrameAllocationError::AlreadyAllocated)?;
+        }
+
+        let info = self
+            .buffer_info()
+            .map_err(|err| VideoFrameAllocationError::BufferInfoError(err))?;
+
+        let (alloc, ptr) = FrameDataDropGuard::new_boxed(info.size);
         self.alloc = alloc;
         self.raw.p_data = ptr;
-        unsafe {
-            self.set_lib_stride(stride);
-            self.set_resolution(resolution);
+        self.raw.__bindgen_anon_1.line_stride_in_bytes = info.line_stride as i32;
+
+        Ok(())
+    }
+
+    /// Allocates a frame buffer for the video frame. Panics if there is an error.
+    pub fn alloc(&mut self) {
+        self.try_alloc().unwrap();
+    }
+
+    /// Deallocates the frame buffer
+    pub fn dealloc(&mut self) {
+        let drops_metadata = self.alloc.is_from_sdk();
+        unsafe { self.alloc.drop_buffer(&mut self.raw) };
+        self.raw.p_data = std::ptr::null_mut();
+        self.raw.__bindgen_anon_1.line_stride_in_bytes = -1;
+        if drops_metadata {
+            self.raw.p_metadata = std::ptr::null_mut();
         }
     }
 
-    pub fn try_alloc(
-        &mut self,
-        resolution: Resolution,
-        four_cc: FourCCVideo,
-    ) -> Result<(), VideoFrameAllocationError> {
-        if let Some(info) = four_cc.buffer_info(resolution, self.frame_format()) {
-            let (alloc, ptr) = FrameDataDropGuard::new_boxed(info.size);
-            unsafe { self.drop_buffer_backend() };
-            self.alloc = alloc;
-            self.raw.p_data = ptr;
-            self.raw.FourCC = four_cc.to_ffi();
-            unsafe {
-                self.set_lib_stride(info.line_stride as i32);
-                self.set_resolution(resolution);
-            }
-            Ok(())
-        } else {
-            Err(VideoFrameAllocationError::UnsupportedFourCC(four_cc))
+    /// Read access to the frame data
+    pub fn video_data(&self) -> Result<(&[u8], BufferInfo), VideoFrameAccessError> {
+        if !self.is_allocated() {
+            Err(VideoFrameAccessError::NotAllocated)?;
         }
+
+        let info = self
+            .buffer_info()
+            .map_err(|err| VideoFrameAccessError::BufferInfoError(err))?;
+
+        assert_eq!(
+            info.line_stride,
+            self.lib_stride() as usize,
+            "[Fatal FFI Error] Stride mismatch"
+        );
+
+        assert!(
+            !self.raw.p_data.is_null(),
+            "[Invariant Error] data pointer does not match allocation"
+        );
+        Ok((
+            unsafe { std::slice::from_raw_parts(self.raw.p_data, info.size) },
+            info,
+        ))
     }
 
-    pub fn alloc(&mut self, resolution: Resolution, four_cc: FourCCVideo) {
-        self.try_alloc(resolution, four_cc).unwrap();
-    }
+    /// Mutable access to the frame data
+    pub fn video_data_mut(&mut self) -> Result<(&mut [u8], BufferInfo), VideoFrameAccessError> {
+        if !self.is_allocated() {
+            Err(VideoFrameAccessError::NotAllocated)?;
+        }
 
+        if !self.alloc.is_mut() {
+            Err(VideoFrameAccessError::Readonly)?;
+        }
+
+        let info = self
+            .buffer_info()
+            .map_err(|err| VideoFrameAccessError::BufferInfoError(err))?;
+
+        assert_eq!(
+            info.line_stride,
+            self.lib_stride() as usize,
+            "[Fatal FFI Error] Stride mismatch"
+        );
+
+        assert!(
+            !self.raw.p_data.is_null(),
+            "[Invariant Error] data pointer does not match allocation"
+        );
+
+        Ok((
+            unsafe { std::slice::from_raw_parts_mut(self.raw.p_data, info.size) },
+            info,
+        ))
+    }
+}
+
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VideoFrameAllocationError {
+    AlreadyAllocated,
+    BufferInfoError(BufferInfoError),
+}
+
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VideoFrameAccessError {
+    NotAllocated,
+    Readonly,
+    BufferInfoError(BufferInfoError),
+}
+
+// Property accessors
+impl VideoFrame {
+    /// Gets the resolution of the frame.
     pub fn resolution(&self) -> Resolution {
         Resolution::from_i32(self.raw.xres, self.raw.yres)
     }
-    pub unsafe fn set_resolution(&mut self, resolution: Resolution) {
-        (self.raw.xres, self.raw.yres) = resolution.to_i32();
+
+    /// Sets the resolution of the frame.
+    /// This will fail if the frame is already allocated.
+    pub fn set_resolution(&mut self, resolution: Resolution) -> VoidResult {
+        if self.is_allocated() {
+            Err(())
+        } else {
+            (self.raw.xres, self.raw.yres) = resolution.to_i32();
+            self.raw.picture_aspect_ratio = resolution.aspect_ratio() as f32;
+            Ok(())
+        }
     }
 
+    /// Gets the FourCC format of the frame
     pub fn four_cc(&self) -> Option<FourCCVideo> {
         FourCCVideo::from_ffi(self.raw.FourCC)
     }
-    pub unsafe fn set_four_cc(&mut self, four_cc: FourCCVideo) {
-        self.raw.FourCC = four_cc.to_ffi();
+
+    /// Sets the FourCC format of the frame.
+    /// This will fail if the frame is already allocated.
+    pub fn set_four_cc(&mut self, four_cc: FourCCVideo) -> VoidResult {
+        if self.is_allocated() {
+            Err(())
+        } else {
+            self.raw.FourCC = four_cc.to_ffi();
+            Ok(())
+        }
     }
 
     pub fn frame_rate(&self) -> Rational32 {
@@ -143,6 +232,7 @@ impl VideoFrame {
         self.raw.frame_rate_D = *frame_rate.denom();
     }
 
+    /// Access the metadata associated with the frame if any
     pub fn metadata(&self) -> Option<&CStr> {
         if self.raw.p_metadata.is_null() {
             None
@@ -152,12 +242,20 @@ impl VideoFrame {
     }
     // TODO: pub fn set_metadata
 
-    pub fn frame_format(&self) -> NDIFieldedFrameMode {
+    /// gets the current field mode of the frame
+    pub fn field_mode(&self) -> NDIFieldedFrameMode {
         NDIFieldedFrameMode::from_ffi(self.raw.frame_format_type)
             .expect("[Fatal FFI Error] Invalid frame format type")
     }
-    pub unsafe fn set_frame_format(&mut self, frame_format: NDIFieldedFrameMode) {
-        self.raw.frame_format_type = frame_format.to_ffi();
+    /// sets the field mode of the frame.
+    /// This will fail if the frame is already allocated.
+    pub fn set_frame_format(&mut self, frame_format: NDIFieldedFrameMode) -> VoidResult {
+        if self.is_allocated() {
+            Err(())
+        } else {
+            self.raw.frame_format_type = frame_format.to_ffi();
+            Ok(())
+        }
     }
 
     pub fn send_time(&self) -> NDITime {
@@ -174,62 +272,42 @@ impl VideoFrame {
         self.raw.timestamp = time.to_ffi();
     }
 
+    /// This is not relevant until you do stuff with the allocation
     fn lib_stride(&self) -> i32 {
         unsafe { self.raw.__bindgen_anon_1.line_stride_in_bytes }
     }
+}
+
+// Dangerous APIs
+#[cfg(feature = "dangerous_apis")]
+impl VideoFrame {
+    /// Forcefully sets the resolution even if the frame is allocated.
+    /// This should be used with extreme caution.
+    /// If used incorrectly, it can lead to memory corruption by out-of-bounds access.
+    pub unsafe fn force_set_resolution(&mut self, resolution: Resolution) {
+        (self.raw.xres, self.raw.yres) = resolution.to_i32();
+        self.raw.picture_aspect_ratio = resolution.aspect_ratio() as f32;
+    }
+
+    /// Forcefully sets the FourCC even if the frame is allocated.
+    /// This should be used with extreme caution.
+    /// If used incorrectly, it can lead to memory corruption by out-of-bounds access.
+    pub unsafe fn force_set_four_cc(&mut self, four_cc: FourCCVideo) {
+        self.raw.FourCC = four_cc.to_ffi();
+    }
+
+    /// Forcefully sets the field mode even if the frame is allocated.
+    /// This should be used with extreme caution.
+    /// If used incorrectly, it can lead to memory corruption by out-of-bounds access.
+    pub unsafe fn force_set_frame_format(&mut self, frame_format: NDIFieldedFrameMode) {
+        self.raw.frame_format_type = frame_format.to_ffi();
+    }
+
+    /// This should be used with extreme caution.
+    /// If used incorrectly, it can lead to memory corruption by out-of-bounds access.
     unsafe fn set_lib_stride(&mut self, stride: i32) {
         self.raw.__bindgen_anon_1.line_stride_in_bytes = stride;
     }
-
-    pub fn video_data(&self) -> Option<(&[u8], BufferInfo)> {
-        if self.raw.p_data.is_null() {
-            None
-        } else if let Some(info) = self
-            .four_cc()
-            .and_then(|cc| cc.buffer_info(self.resolution(), self.frame_format()))
-        {
-            assert_eq!(
-                info.line_stride,
-                self.lib_stride() as usize,
-                "[Fatal FFI Error] Stride mismatch"
-            );
-            Some((
-                unsafe { std::slice::from_raw_parts(self.raw.p_data, info.size) },
-                info,
-            ))
-        } else {
-            None
-        }
-    }
-
-    pub fn video_data_mut(&mut self) -> Option<(&mut [u8], BufferInfo)> {
-        if self.raw.p_data.is_null() {
-            None
-        } else if !self.alloc.is_mut() {
-            None
-        } else if let Some(info) = self
-            .four_cc()
-            .and_then(|cc| cc.buffer_info(self.resolution(), self.frame_format()))
-        {
-            assert_eq!(
-                info.line_stride,
-                self.lib_stride() as usize,
-                "[Fatal FFI Error] Stride mismatch"
-            );
-            Some((
-                unsafe { std::slice::from_raw_parts_mut(self.raw.p_data, info.size) },
-                info,
-            ))
-        } else {
-            None
-        }
-    }
-}
-
-#[non_exhaustive]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum VideoFrameAllocationError {
-    UnsupportedFourCC(FourCCVideo),
 }
 
 impl Debug for VideoFrame {
@@ -250,7 +328,7 @@ impl Debug for VideoFrame {
             write!(f, "FourCC: {:#x}, ", self.raw.FourCC)?;
         }
 
-        write!(f, "format: {:?}, ", self.frame_format())?;
+        write!(f, "format: {:?}, ", self.field_mode())?;
 
         write!(f, "stride: {}, ", self.lib_stride())?;
 

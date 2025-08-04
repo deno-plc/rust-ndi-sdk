@@ -45,8 +45,8 @@ fn main() {
             Duration::from_secs(1),
         ) {
             NDIRecvType::Video => {
-                println!("Received video frame {:?}", video);
-                if let Some((data, info)) = video.video_data() {
+                println!("Received video frame {:#?}", video);
+                if let Ok((data, info)) = video.video_data() {
                     println!("Video data: {:?}", &data[0..16]);
                     println!("Buffer info: {:?}", info);
                 }

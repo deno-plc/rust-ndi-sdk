@@ -10,7 +10,8 @@ keywords = ["ndi", "video"]
 
 [features]
 strict_assertions = []
-docsrs = []
+dangerous_apis = []
+docsrs = ["dangerous_apis"]
 
 [build-dependencies]
 bindgen = "0.71"

@@ -1,11 +1,11 @@
 use std::ffi::{CStr, CString};
 
 use crate::bindings;
-pub use crate::bindings::NDIlib_metadata_frame_t as NDIRawMetadataFrame;
+pub(crate) use crate::bindings::NDIlib_metadata_frame_t as NDIRawMetadataFrame;
 
-use super::{NDIFrame, NDIFrameExt, RawFrame, RawFrameInner, drop_guard::FrameDataDropGuard};
+use super::{NDIFrame, RawBufferManagement, RawFrame, drop_guard::FrameDataDropGuard};
 
-impl RawFrameInner for NDIRawMetadataFrame {
+impl RawBufferManagement for NDIRawMetadataFrame {
     #[inline]
     unsafe fn drop_with_recv(&mut self, recv: bindings::NDIlib_recv_instance_t) {
         unsafe { bindings::NDIlib_recv_free_metadata(recv, self) }
@@ -27,17 +27,6 @@ impl RawFrameInner for NDIRawMetadataFrame {
 impl RawFrame for NDIRawMetadataFrame {}
 
 pub type MetadataFrame = NDIFrame<NDIRawMetadataFrame>;
-
-impl NDIFrameExt<NDIRawMetadataFrame> for MetadataFrame {
-    fn data_valid(&self) -> bool {
-        !self.raw.p_data.is_null() && self.alloc != FrameDataDropGuard::NullPtr
-    }
-
-    fn clear(&mut self) {
-        unsafe { self.drop_buffer_backend() };
-        self.raw.p_data = std::ptr::null_mut();
-    }
-}
 
 impl MetadataFrame {
     pub fn new() -> Self {
@@ -84,6 +73,13 @@ impl MetadataFrame {
             Some(str)
         }
     }
+
+    // TODO: implement editing of metadata frames, otherwise this doesn't make much sense
+    // pub fn dealloc(&mut self) {
+    //     unsafe { self.alloc.drop_buffer(&mut self.raw) };
+    //     self.raw.p_data = std::ptr::null_mut();
+    //     self.raw.length = 0;
+    // }
 }
 
 impl From<CString> for MetadataFrame {

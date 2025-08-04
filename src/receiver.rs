@@ -127,8 +127,11 @@ unsafe impl Sync for NDIReceiver {}
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub enum NDIRecvType {
+    /// A video frame was received
     Video,
+    /// An audio frame was received
     Audio,
+    /// A metadata frame was received
     Metadata,
     /// No frame was received, most likely because the timeout was reached.
     None,
@@ -137,6 +140,8 @@ pub enum NDIRecvType {
     /// No frame was received, but the status of the connection changed.
     /// Things like the web control URL could have changed
     StatusChange,
+    /// The source the receiver is connected to has changed
+    SourceChange,
 }
 
 impl NDIReceiver {
@@ -248,6 +253,22 @@ impl NDIReceiver {
                 }
 
                 NDIRecvType::StatusChange
+            }
+            bindings::NDIlib_frame_type_e_NDIlib_frame_type_source_change => {
+                #[cfg(any(debug_assertions, feature = "strict_assertions"))]
+                {
+                    if let Some(video) = video {
+                        video.assert_unwritten();
+                    }
+                    if let Some(audio) = audio {
+                        audio.assert_unwritten();
+                    }
+                    if let Some(meta) = meta {
+                        meta.assert_unwritten();
+                    }
+                }
+
+                NDIRecvType::SourceChange
             }
             bindings::NDIlib_frame_type_e_NDIlib_frame_type_none => {
                 #[cfg(any(debug_assertions, feature = "strict_assertions"))]

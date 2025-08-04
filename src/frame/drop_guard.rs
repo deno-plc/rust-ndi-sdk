@@ -1,8 +1,6 @@
 use std::{ffi::CString, fmt::Debug};
 
-use crate::bindings;
-
-use super::RawFrame;
+use crate::{bindings, frame::RawBufferManagement};
 
 /// Holds the frame allocation
 #[derive(PartialEq, Eq)]
@@ -19,13 +17,16 @@ impl Debug for FrameDataDropGuard {
         match self {
             Self::NullPtr => write!(f, "NullPtr"),
             Self::Receiver(recv) => f.debug_tuple("Receiver").field(recv).finish(),
-            Self::Sender(recv) => f.debug_tuple("Sender").field(recv).finish(),
+            Self::Sender(sender) => f.debug_tuple("Sender").field(sender).finish(),
             Self::Box(data) => write!(f, "Box ({} bytes)", data.len()),
             Self::CString(cstr) => write!(f, "CString ({})", cstr.to_string_lossy()),
         }
     }
 }
 
+// To drop the recv/sender frames we need additional information. Therefore they are dropped explicitly by calling `drop_buffer`.
+// This drop impl just checks if this was done correctly.
+// `drop_buffer` overwrites the pointers with NULL, otherwise we know that they were not freed correctly.
 impl Drop for FrameDataDropGuard {
     fn drop(&mut self) {
         match self {
@@ -73,6 +74,20 @@ impl FrameDataDropGuard {
         !matches!(self, FrameDataDropGuard::NullPtr)
     }
 
+    /// Check if the frame is allocated (=it is not a NullPtr)
+    #[inline]
+    pub fn is_allocated(&self) -> bool {
+        !matches!(self, FrameDataDropGuard::NullPtr)
+    }
+
+    #[inline]
+    pub fn is_from_sdk(&self) -> bool {
+        matches!(
+            self,
+            FrameDataDropGuard::Receiver(_) | FrameDataDropGuard::Sender(_)
+        )
+    }
+
     /// Checks if it is safe to write into the frame data by user code
     #[inline]
     pub fn is_mut(&self) -> bool {
@@ -108,7 +123,7 @@ impl FrameDataDropGuard {
     }
 
     /// Drop the buffer, freeing the memory if necessary
-    pub unsafe fn drop_buffer(&mut self, raw: &mut impl RawFrame) {
+    pub unsafe fn drop_buffer(&mut self, raw: &mut impl RawBufferManagement) {
         if let FrameDataDropGuard::Receiver(recv) = self {
             unsafe { raw.drop_with_recv(*recv) }
             *recv = std::ptr::null_mut();
@@ -117,7 +132,7 @@ impl FrameDataDropGuard {
             *sender = std::ptr::null_mut();
         }
 
-        // self and with it the Box is dropped here
+        // self and with it all owned data is dropped
         *self = FrameDataDropGuard::NullPtr;
     }
 }
