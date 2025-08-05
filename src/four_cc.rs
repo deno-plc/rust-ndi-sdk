@@ -1,3 +1,8 @@
+//! FourCC (Four Character Code) is a sequence of four bytes used to uniquely identify data formats.
+//!
+//! https://docs.ndi.video/all/developing-with-ndi/sdk/frame-types#video-frames-ndilib_video_frame_v2_t
+//! https://en.wikipedia.org/wiki/FourCC
+
 use std::fmt::{Debug, Display};
 
 use num_enum::{IntoPrimitive, TryFromPrimitive};
@@ -8,17 +13,11 @@ use crate::{
     structs::{buffer_info::BufferInfo, resolution::Resolution, subsampling::Subsampling},
 };
 
-#[cfg(test)]
-use strum::{EnumIter, IntoEnumIterator};
-
-///! FourCC (Four Character Code) is a sequence of four bytes used to uniquely identify data formats.
-
 /// Possible FourCC values for video frames.
 #[repr(i32)]
 #[non_exhaustive]
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
-#[cfg_attr(test, derive(EnumIter))]
 pub enum FourCCVideo {
     UYVY = bindings::NDIlib_FourCC_video_type_e_NDIlib_FourCC_video_type_UYVY,
     UYVA = bindings::NDIlib_FourCC_video_type_e_NDIlib_FourCC_video_type_UYVA,
@@ -27,10 +26,14 @@ pub enum FourCCVideo {
     YV12 = bindings::NDIlib_FourCC_video_type_e_NDIlib_FourCC_video_type_YV12,
     I420 = bindings::NDIlib_FourCC_video_type_e_NDIlib_FourCC_video_type_I420,
     NV12 = bindings::NDIlib_FourCC_video_type_e_NDIlib_FourCC_video_type_NV12,
-    BGRA = bindings::NDIlib_FourCC_video_type_e_NDIlib_FourCC_video_type_BGRA,
-    BGRX = bindings::NDIlib_FourCC_video_type_e_NDIlib_FourCC_video_type_BGRX,
+    /// Red, Green, Blue, Alpha (8bit)
     RGBA = bindings::NDIlib_FourCC_video_type_e_NDIlib_FourCC_video_type_RGBA,
+    /// RGBA with ignored alpha channel
     RGBX = bindings::NDIlib_FourCC_video_type_e_NDIlib_FourCC_video_type_RGBX,
+    /// Blue, Green, Red, Alpha (8bit)
+    BGRA = bindings::NDIlib_FourCC_video_type_e_NDIlib_FourCC_video_type_BGRA,
+    /// BGRA with ignored alpha channel
+    BGRX = bindings::NDIlib_FourCC_video_type_e_NDIlib_FourCC_video_type_BGRX,
 }
 
 impl FourCCVideo {
@@ -42,15 +45,6 @@ impl FourCCVideo {
         Self::try_from_primitive(value).ok()
     }
 
-    pub fn buffer_size(self, resolution: Resolution) -> Option<usize> {
-        use FourCCVideo::*;
-        match self {
-            UYVY => Some(resolution.pixels() * 2),
-            BGRA | BGRX | RGBA | RGBX => Some(resolution.pixels() * 4),
-            _ => None,
-        }
-    }
-
     /// Returns information about the memory layout of the frame data
     pub fn buffer_info(
         self,
@@ -58,21 +52,19 @@ impl FourCCVideo {
         field_mode: NDIFieldedFrameMode,
     ) -> Result<BufferInfo, BufferInfoError> {
         use FourCCVideo::*;
-        let mut pixel_stride = 0;
-        let mut subsampling = Subsampling::default();
+        let pixel_stride;
+        let mut subsampling = Subsampling::none();
 
         match self {
             UYVY => {
                 pixel_stride = 2;
                 subsampling = Subsampling::new(4, 2, 2);
-                Ok(())
             }
             BGRA | BGRX | RGBA | RGBX => {
                 pixel_stride = 4;
-                Ok(())
             }
-            cc => Err(BufferInfoError::UnsupportedFourCC(cc)),
-        }?;
+            cc => return Err(BufferInfoError::UnsupportedFourCC(cc)),
+        };
 
         let size = resolution.pixels() * pixel_stride;
 
@@ -93,16 +85,18 @@ impl FourCCVideo {
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BufferInfoError {
+    /// There is no Layout implementation for this FourCC yet
     UnsupportedFourCC(FourCCVideo),
     UnspecifiedFourCC,
 }
 
+/// Possible FourCC values for audio frames.
 #[repr(i32)]
 #[non_exhaustive]
 #[allow(non_camel_case_types)]
 #[derive(Debug, Default, Clone, Copy, Hash, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
-#[cfg_attr(test, derive(EnumIter))]
 pub enum FourCCAudio {
+    /// Floating point
     #[default]
     FLTP = bindings::NDIlib_FourCC_audio_type_e_NDIlib_FourCC_audio_type_FLTP,
 }
@@ -117,67 +111,46 @@ impl FourCCAudio {
     }
 }
 
-/// Make sure that the video and audio FourCCs do not overlap, otherwise FourCC::from_ffi
-/// will not be able to distinguish between them.
-#[test]
-fn four_cc_no_overlap() {
-    use std::collections::HashSet;
-
-    let video = FourCCVideo::iter()
-        .map(|variant| variant.to_ffi())
-        .collect::<HashSet<_>>();
-    let audio = FourCCAudio::iter()
-        .map(|variant| variant.to_ffi())
-        .collect::<HashSet<_>>();
-
-    assert_eq!(video.intersection(&audio).count(), 0);
-}
-
-#[non_exhaustive]
+/// Represents a generic FourCC code.
+#[repr(transparent)]
 #[derive(Clone, Copy, Hash, PartialEq, Eq)]
-pub enum FourCC {
-    Video(FourCCVideo),
-    Audio(FourCCAudio),
-    Unknown(i32),
+pub struct FourCC {
+    // use anything with 32bit, using signed reduces the number of casts
+    code: i32,
 }
 
 impl FourCC {
+    /// Creates a new FourCC from an i32 code.
+    pub fn from_ffi(code: i32) -> Self {
+        FourCC { code }
+    }
+
+    /// Converts the FourCC to its i32 representation.
     pub fn to_ffi(self) -> i32 {
-        match self {
-            FourCC::Video(cc) => cc.to_ffi(),
-            FourCC::Audio(cc) => cc.to_ffi(),
-            FourCC::Unknown(cc) => cc,
-        }
+        self.code
     }
 
-    pub fn from_ffi(value: NDIlib_FourCC_audio_type_e) -> Self {
-        if let Some(cc) = FourCCVideo::from_ffi(value) {
-            FourCC::Video(cc)
-        } else if let Some(cc) = FourCCAudio::from_ffi(value) {
-            FourCC::Audio(cc)
-        } else {
-            FourCC::Unknown(value)
-        }
+    /// Attempts to convert the FourCC to a FourCCVideo.
+    pub fn as_video(&self) -> Option<FourCCVideo> {
+        FourCCVideo::from_ffi(self.code)
     }
 
-    pub fn to_string(self) -> String {
-        let bytes: [u8; 4] = self.to_ffi().to_le_bytes();
+    /// Attempts to convert the FourCC to a FourCCAudio.
+    pub fn as_audio(&self) -> Option<FourCCAudio> {
+        FourCCAudio::from_ffi(self.code)
+    }
+
+    /// formats the FourCC as a string.
+    pub fn to_string(&self) -> String {
+        let bytes: [u8; 4] = self.code.to_le_bytes();
 
         String::from_utf8_lossy(&bytes).to_string()
-    }
-
-    fn type_name(self) -> &'static str {
-        match self {
-            FourCC::Video(_) => "Video",
-            FourCC::Audio(_) => "Audio",
-            FourCC::Unknown(_) => "Unknown",
-        }
     }
 }
 
 impl Display for FourCC {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let bytes: [u8; 4] = self.to_ffi().to_le_bytes();
+        let bytes: [u8; 4] = self.code.to_le_bytes();
 
         let ascii = String::from_utf8_lossy(&bytes);
 
@@ -187,22 +160,54 @@ impl Display for FourCC {
 
 impl Debug for FourCC {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let bytes: [u8; 4] = self.to_ffi().to_le_bytes();
+        let bytes: [u8; 4] = self.code.to_le_bytes();
 
         let ascii = String::from_utf8_lossy(&bytes);
 
-        write!(f, "FourCC({},{})", ascii, self.type_name())
+        write!(f, "FourCC({})", ascii,)
     }
 }
 
 impl From<FourCCVideo> for FourCC {
     fn from(value: FourCCVideo) -> Self {
-        FourCC::Video(value)
+        FourCC {
+            code: value.to_ffi(),
+        }
     }
 }
 
 impl From<FourCCAudio> for FourCC {
     fn from(value: FourCCAudio) -> Self {
-        FourCC::Audio(value)
+        FourCC {
+            code: value.to_ffi(),
+        }
+    }
+}
+
+impl From<i32> for FourCC {
+    fn from(code: i32) -> Self {
+        FourCC { code }
+    }
+}
+
+impl From<FourCC> for i32 {
+    fn from(fourcc: FourCC) -> Self {
+        fourcc.code
+    }
+}
+
+impl TryFrom<FourCC> for FourCCVideo {
+    type Error = ();
+
+    fn try_from(value: FourCC) -> Result<Self, Self::Error> {
+        FourCCVideo::from_ffi(value.code).ok_or(())
+    }
+}
+
+impl TryFrom<FourCC> for FourCCAudio {
+    type Error = ();
+
+    fn try_from(value: FourCC) -> Result<Self, Self::Error> {
+        FourCCAudio::from_ffi(value.code).ok_or(())
     }
 }
