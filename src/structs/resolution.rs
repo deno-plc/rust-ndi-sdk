@@ -48,13 +48,22 @@ impl Resolution {
 
     /// Checks if the resolution is safe to handle
     ///
-    /// A resolution is considered unsafe if one component is zero or `width * height * 4 color components * 16bit` exceeds i32::MAX
+    /// A resolution is considered unsafe if
+    /// - one component is zero
+    /// - `width * height * 4 color components * 16bit` exceeds i32::MAX
+    /// - width is not divisible by 2
     pub const fn is_safe(&self) -> bool {
         const MAX_SAFE_VALUE: usize = i32::MAX as usize;
         const MAX_PIXEL_BYTES: usize = 8; // 4 components x 16bit
         const MAX_SAFE_PIXELS: usize = MAX_SAFE_VALUE / MAX_PIXEL_BYTES;
 
         if self.x == 0 || self.y == 0 {
+            return false;
+        }
+
+        // https://docs.ndi.video/all/developing-with-ndi/sdk/frame-types#video-frames-ndilib_video_frame_v2_t
+        // >  Note that, because data is internally all considered in 4:2:2 formats, image width values should be divisible by two.
+        if self.x & 0b1 != 0 {
             return false;
         }
 
