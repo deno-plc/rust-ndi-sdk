@@ -26,7 +26,7 @@ impl Debug for Subsampling {
 }
 
 impl Subsampling {
-    pub fn new(x_ref: u8, x_samples: u8, x2_samples: u8) -> Self {
+    pub const fn new(x_ref: u8, x_samples: u8, x2_samples: u8) -> Self {
         Subsampling {
             x_ref,
             x_samples,
@@ -34,11 +34,19 @@ impl Subsampling {
         }
     }
 
-    pub fn is_subsampled(&self) -> bool {
+    pub const fn none() -> Self {
+        Subsampling {
+            x_ref: 4,
+            x_samples: 4,
+            x2_samples: 4,
+        }
+    }
+
+    pub const fn is_subsampled(&self) -> bool {
         self.x_ref != self.x_samples || self.x_ref != self.x2_samples
     }
 
-    pub fn is_regular(&self) -> bool {
+    pub const fn is_regular(&self) -> bool {
         if self.x_ref == 0 {
             return false;
         }
