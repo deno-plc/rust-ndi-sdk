@@ -203,7 +203,12 @@ impl VideoFrame {
             Err(())
         } else {
             (self.raw.xres, self.raw.yres) = resolution.to_i32();
-            self.raw.picture_aspect_ratio = resolution.aspect_ratio() as f32;
+
+            // self.raw.picture_aspect_ratio = resolution.aspect_ratio() as f32;
+            // Let NDI do this for us
+            // This assignment is necessary in case a frame is received (which sets the aspect ratio),
+            // then deallocated, and then reallocated with a different resolution.
+            self.raw.picture_aspect_ratio = 0.0;
             Ok(())
         }
     }
