@@ -1,6 +1,6 @@
 use std::{ffi::CString, fmt::Debug};
 
-use crate::{bindings, frame::RawBufferManagement};
+use crate::bindings;
 
 /// Holds the frame allocation
 #[derive(PartialEq, Eq)]
@@ -135,4 +135,10 @@ impl FrameDataDropGuard {
         // self and with it all owned data is dropped
         *self = FrameDataDropGuard::NullPtr;
     }
+}
+
+pub trait RawBufferManagement {
+    unsafe fn drop_with_recv(&mut self, recv: bindings::NDIlib_recv_instance_t);
+    unsafe fn drop_with_sender(&mut self, recv: bindings::NDIlib_send_instance_t);
+    fn assert_unwritten(&self);
 }
