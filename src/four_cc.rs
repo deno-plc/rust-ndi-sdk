@@ -211,3 +211,15 @@ impl TryFrom<FourCC> for FourCCAudio {
         FourCCAudio::from_ffi(value.code).ok_or(())
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_fmt() {
+        let fourcc = FourCC::from(FourCCVideo::RGBA);
+        assert_eq!(fourcc.to_string(), "RGBA");
+        assert_eq!(format!("{:?}", fourcc), "FourCC(RGBA)");
+    }
+}

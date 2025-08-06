@@ -8,7 +8,7 @@ pub(crate) use crate::bindings::NDIlib_video_frame_v2_t as NDIRawVideoFrame;
 use crate::{
     bindings,
     enums::NDIFieldedFrameMode,
-    four_cc::{BufferInfoError, FourCCVideo},
+    four_cc::{BufferInfoError, FourCC, FourCCVideo},
     structs::{buffer_info::BufferInfo, resolution::Resolution},
     timecode::NDITime,
     util::VoidResult,
@@ -218,6 +218,10 @@ impl VideoFrame {
         FourCCVideo::from_ffi(self.raw.FourCC)
     }
 
+    pub fn raw_four_cc(&self) -> FourCC {
+        FourCC::from_ffi(self.raw.FourCC)
+    }
+
     /// Sets the FourCC format of the frame.
     /// This will fail if the frame is already allocated.
     pub fn set_four_cc(&mut self, four_cc: FourCCVideo) -> VoidResult {
@@ -298,6 +302,13 @@ impl VideoFrame {
     /// This should be used with extreme caution.
     /// If used incorrectly, it can lead to memory corruption by out-of-bounds access.
     pub unsafe fn force_set_four_cc(&mut self, four_cc: FourCCVideo) {
+        self.raw.FourCC = four_cc.to_ffi();
+    }
+
+    /// Forcefully sets the FourCC even if the frame is allocated.
+    /// This should be used with extreme caution.
+    /// If used incorrectly, it can lead to memory corruption by out-of-bounds access.
+    pub unsafe fn force_set_raw_four_cc(&mut self, four_cc: FourCC) {
         self.raw.FourCC = four_cc.to_ffi();
     }
 
