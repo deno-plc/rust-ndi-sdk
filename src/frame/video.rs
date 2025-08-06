@@ -177,15 +177,22 @@ impl VideoFrame {
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VideoFrameAllocationError {
+    /// The frame is already allocated
+    /// You have to deallocate it first
     AlreadyAllocated,
+    /// An error occurred while trying to compute the buffer info
     BufferInfoError(BufferInfoError),
 }
 
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VideoFrameAccessError {
+    /// It is impossible to get a reference to a frame buffer that does not exist
     NotAllocated,
+    /// Only possible for {VideoFrame::video_data_mut} if the buffer is not
+    /// intended to be modified (like a received frame)
     Readonly,
+    /// An error occurred while trying to compute the buffer info
     BufferInfoError(BufferInfoError),
 }
 
