@@ -1,16 +1,19 @@
-use std::{ffi::CString, fmt::Debug};
+use std::{ffi::CString, fmt::Debug, sync::Arc};
 
-use crate::bindings;
+use crate::{receiver::RawReceiver, sender::RawSender};
 
 /// Holds the frame allocation
 #[derive(PartialEq, Eq)]
 pub(crate) enum FrameDataDropGuard {
     NullPtr,
-    Receiver(bindings::NDIlib_recv_instance_t),
-    Sender(bindings::NDIlib_send_instance_t),
+    Receiver(Option<Arc<RawReceiver>>),
+    Sender(Option<Arc<RawSender>>),
     Box(Box<[u8]>),
     CString(CString),
 }
+
+unsafe impl Send for FrameDataDropGuard {}
+unsafe impl Sync for FrameDataDropGuard {}
 
 impl Debug for FrameDataDropGuard {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -26,30 +29,24 @@ impl Debug for FrameDataDropGuard {
 
 // To drop the recv/sender frames we need additional information. Therefore they are dropped explicitly by calling `drop_buffer`.
 // This drop impl just checks if this was done correctly.
-// `drop_buffer` overwrites the pointers with NULL, otherwise we know that they were not freed correctly.
 impl Drop for FrameDataDropGuard {
     fn drop(&mut self) {
         match self {
-            Self::Receiver(recv) => {
-                if !recv.is_null() {
-                    panic!(
-                        "Attempted to drop FrameDataDropGuard::Receiver, the frame was not freed correctly: {:?}",
-                        recv
-                    );
-                }
+            Self::Receiver(Some(recv)) => {
+                panic!(
+                    "Attempted to drop FrameDataDropGuard::Receiver, the frame was not freed correctly: {:?}",
+                    recv
+                );
             }
 
-            Self::Sender(sender) => {
-                if !sender.is_null() {
-                    panic!(
-                        "Attempted to drop FrameDataDropGuard::Sender, the frame was not freed correctly: {:?}",
-                        sender
-                    );
-                }
+            Self::Sender(Some(sender)) => {
+                panic!(
+                    "Attempted to drop FrameDataDropGuard::Sender, the frame was not freed correctly: {:?}",
+                    sender
+                );
             }
 
-            Self::Box(_) | Self::CString(_) => {}
-            Self::NullPtr => {}
+            _ => {}
         }
     }
 }
@@ -122,14 +119,24 @@ impl FrameDataDropGuard {
         }
     }
 
+    pub fn from_sender(&mut self, sender: Arc<RawSender>) {
+        *self = FrameDataDropGuard::Sender(Some(sender));
+    }
+
+    pub fn from_receiver(&mut self, recv: Arc<RawReceiver>) {
+        *self = FrameDataDropGuard::Receiver(Some(recv));
+    }
+
     /// Drop the buffer, freeing the memory if necessary
     pub unsafe fn drop_buffer(&mut self, raw: &mut impl RawBufferManagement) {
-        if let FrameDataDropGuard::Receiver(recv) = self {
-            unsafe { raw.drop_with_recv(*recv) }
-            *recv = std::ptr::null_mut();
-        } else if let FrameDataDropGuard::Sender(sender) = self {
-            unsafe { raw.drop_with_sender(*sender) }
-            *sender = std::ptr::null_mut();
+        if let FrameDataDropGuard::Receiver(recv) = self
+            && let Some(recv) = recv.take()
+        {
+            unsafe { raw.drop_with_recv(&recv) }
+        } else if let FrameDataDropGuard::Sender(sender) = self
+            && let Some(sender) = sender.take()
+        {
+            unsafe { raw.drop_with_sender(&sender) };
         }
 
         // self and with it all owned data is dropped
@@ -137,8 +144,8 @@ impl FrameDataDropGuard {
     }
 }
 
-pub trait RawBufferManagement {
-    unsafe fn drop_with_recv(&mut self, recv: bindings::NDIlib_recv_instance_t);
-    unsafe fn drop_with_sender(&mut self, recv: bindings::NDIlib_send_instance_t);
+pub(crate) trait RawBufferManagement {
+    unsafe fn drop_with_recv(&mut self, recv: &Arc<RawReceiver>);
+    unsafe fn drop_with_sender(&mut self, sender: &Arc<RawSender>);
     fn assert_unwritten(&self);
 }

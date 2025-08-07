@@ -16,6 +16,7 @@ fn main() {
 
     let src = NDISenderBuilder::new()
         .name("My Test Source")
+        .unwrap()
         .clock_video(true)
         .build()
         .unwrap();

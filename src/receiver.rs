@@ -1,14 +1,18 @@
 use std::{
     ffi::{CStr, CString},
+    fmt::Debug,
+    ptr::NonNull,
+    sync::Arc,
     time::Duration,
 };
+
+use static_assertions::assert_impl_all;
 
 use crate::{
     bindings::{self},
     enums::{NDIBandwidthMode, NDIPreferredColorFormat},
     frame::{
         audio::AudioFrame,
-        drop_guard::FrameDataDropGuard,
         generic::{AsFFIReadable, AsFFIWritable},
         metadata::MetadataFrame,
         video::VideoFrame,
@@ -16,6 +20,8 @@ use crate::{
     source::NDISourceLike,
     structs::tally::Tally,
 };
+
+pub use crate::enums::NDIRecvType;
 
 #[non_exhaustive]
 #[derive(Debug, Clone)]
@@ -103,10 +109,12 @@ impl<Source: NDISourceLike> NDIReceiverBuilder<Source> {
 
             let handle = unsafe { bindings::NDIlib_recv_create_v3(&options) };
 
-            if handle.is_null() {
-                Err(NDIReceiverBuilderError::CreationFailed)
+            if let Some(handle) = NonNull::new(handle) {
+                Ok(NDIReceiver {
+                    handle: Arc::new(RawReceiver { handle }),
+                })
             } else {
-                Ok(NDIReceiver { handle })
+                Err(NDIReceiverBuilderError::CreationFailed)
             }
         })
     }
@@ -118,37 +126,45 @@ pub enum NDIReceiverBuilderError {
     CreationFailed,
 }
 
-pub struct NDIReceiver {
-    handle: bindings::NDIlib_recv_instance_t,
+#[derive(PartialEq, Eq)]
+pub(crate) struct RawReceiver {
+    handle: NonNull<bindings::NDIlib_recv_instance_type>,
 }
-unsafe impl Send for NDIReceiver {}
-unsafe impl Sync for NDIReceiver {}
 
-#[non_exhaustive]
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
-pub enum NDIRecvType {
-    /// A video frame was received
-    Video,
-    /// An audio frame was received
-    Audio,
-    /// A metadata frame was received
-    Metadata,
-    /// No frame was received, most likely because the timeout was reached.
-    None,
-    /// The SDK returned a frame type that is not recognized.
-    Unknown,
-    /// No frame was received, but the status of the connection changed.
-    /// Things like the web control URL could have changed
-    StatusChange,
-    /// The source the receiver is connected to has changed
-    SourceChange,
+impl RawReceiver {
+    pub(crate) fn raw_ptr(&self) -> bindings::NDIlib_recv_instance_t {
+        self.handle.as_ptr()
+    }
 }
+
+impl Drop for RawReceiver {
+    fn drop(&mut self) {
+        unsafe { bindings::NDIlib_recv_destroy(self.raw_ptr()) };
+    }
+}
+
+impl Debug for RawReceiver {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RawReceiver")
+            .field("raw_ptr", &self.raw_ptr())
+            .finish()
+    }
+}
+
+unsafe impl Send for RawReceiver {}
+unsafe impl Sync for RawReceiver {}
+
+pub struct NDIReceiver {
+    handle: Arc<RawReceiver>,
+}
+
+assert_impl_all!(NDIReceiver: Send, Sync);
 
 impl NDIReceiver {
     /// Switches the receiver to the given source.
     pub fn set_source(&self, source: impl NDISourceLike) {
         source.with_descriptor(|src_ptr| {
-            unsafe { bindings::NDIlib_recv_connect(self.handle, src_ptr) };
+            unsafe { bindings::NDIlib_recv_connect(self.handle.raw_ptr(), src_ptr) };
         });
     }
 
@@ -178,7 +194,13 @@ impl NDIReceiver {
         let timeout: u32 = timeout.as_millis().try_into().unwrap_or(u32::MAX);
 
         let recv_type = unsafe {
-            bindings::NDIlib_recv_capture_v3(self.handle, video_ptr, audio_ptr, meta_ptr, timeout)
+            bindings::NDIlib_recv_capture_v3(
+                self.handle.raw_ptr(),
+                video_ptr,
+                audio_ptr,
+                meta_ptr,
+                timeout,
+            )
         };
 
         match recv_type {
@@ -187,7 +209,7 @@ impl NDIReceiver {
                     .expect(
                         "[Fatal FFI Error] SDK indicated that a video frame was received, but there is no buffer it could have been written to",
                     )
-                    .alloc = FrameDataDropGuard::Receiver(self.handle);
+                    .alloc.from_receiver(self.handle.clone());
 
                 #[cfg(any(debug_assertions, feature = "strict_assertions"))]
                 {
@@ -206,7 +228,7 @@ impl NDIReceiver {
                     .expect(
                         "[Fatal FFI Error] SDK indicated that an audio frame was received, but there is no buffer it could have been written to",
                     )
-                    .alloc = FrameDataDropGuard::Receiver(self.handle);
+                    .alloc.from_receiver(self.handle.clone());
 
                 #[cfg(any(debug_assertions, feature = "strict_assertions"))]
                 {
@@ -224,7 +246,7 @@ impl NDIReceiver {
                 meta.expect(
                     "[Fatal FFI Error] SDK indicated that a metadata frame was received, but there is no buffer it could have been written to",
                 )
-                .alloc = FrameDataDropGuard::Receiver(self.handle);
+                .alloc.from_receiver(self.handle.clone());
 
                 #[cfg(any(debug_assertions, feature = "strict_assertions"))]
                 {
@@ -309,7 +331,7 @@ impl NDIReceiver {
 
     unsafe fn free_string(&self, ptr: *const std::os::raw::c_char) {
         if !ptr.is_null() {
-            unsafe { bindings::NDIlib_recv_free_string(self.handle, ptr) };
+            unsafe { bindings::NDIlib_recv_free_string(self.handle.raw_ptr(), ptr) };
         }
     }
 
@@ -321,7 +343,7 @@ impl NDIReceiver {
             }
         })?;
 
-        let result = unsafe { bindings::NDIlib_recv_send_metadata(self.handle, ptr) };
+        let result = unsafe { bindings::NDIlib_recv_send_metadata(self.handle.raw_ptr(), ptr) };
 
         if result {
             Ok(())
@@ -338,14 +360,14 @@ impl NDIReceiver {
             }
         })?;
 
-        unsafe { bindings::NDIlib_recv_add_connection_metadata(self.handle, ptr) };
+        unsafe { bindings::NDIlib_recv_add_connection_metadata(self.handle.raw_ptr(), ptr) };
 
         Ok(())
     }
 
     /// Removes all connection metadata that was previously added.
     pub fn clear_connection_metadata(&self) {
-        unsafe { bindings::NDIlib_recv_clear_connection_metadata(self.handle) };
+        unsafe { bindings::NDIlib_recv_clear_connection_metadata(self.handle.raw_ptr()) };
     }
 
     /// Sets the tally status for the receiver. This will be merged from all receivers on the same
@@ -353,12 +375,13 @@ impl NDIReceiver {
     pub fn set_tally(&self, tally: Tally) {
         let tally = tally.to_ffi();
 
-        unsafe { bindings::NDIlib_recv_set_tally(self.handle, &tally) };
+        unsafe { bindings::NDIlib_recv_set_tally(self.handle.raw_ptr(), &tally) };
     }
 
     /// Returns the current number of connections to the receiver.
     pub fn get_num_connections(&self) -> usize {
-        let num_connections = unsafe { bindings::NDIlib_recv_get_no_connections(self.handle) };
+        let num_connections =
+            unsafe { bindings::NDIlib_recv_get_no_connections(self.handle.raw_ptr()) };
         num_connections
             .try_into()
             .expect("[Fatal FFI Error] NDI SDK returned a invalid number of connections")
@@ -366,10 +389,10 @@ impl NDIReceiver {
 
     /// Get the web control URL for the receiver.
     pub fn get_web_control(&self) -> Option<NDIWebControlInfo> {
-        let ptr = unsafe { bindings::NDIlib_recv_get_web_control(self.handle) };
+        let ptr = unsafe { bindings::NDIlib_recv_get_web_control(self.handle.raw_ptr()) };
 
         if ptr.is_null() {
-            return None;
+            None?;
         }
 
         let str = unsafe { CStr::from_ptr(ptr) };
@@ -377,12 +400,6 @@ impl NDIReceiver {
             url: str,
             recv: self,
         })
-    }
-}
-
-impl Drop for NDIReceiver {
-    fn drop(&mut self) {
-        unsafe { bindings::NDIlib_recv_destroy(self.handle) };
     }
 }
 

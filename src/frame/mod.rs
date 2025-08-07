@@ -9,4 +9,4 @@ use crate::frame::drop_guard::RawBufferManagement;
 pub use generic::NDIFrame;
 
 #[allow(private_bounds)]
-pub trait RawFrame: RawBufferManagement {}
+pub trait RawFrame: RawBufferManagement + Send + Sync {}

@@ -193,3 +193,24 @@ impl NDIFieldedFrameMode {
         )
     }
 }
+
+#[must_use]
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+pub enum NDIRecvType {
+    /// A video frame was received
+    Video,
+    /// An audio frame was received
+    Audio,
+    /// A metadata frame was received
+    Metadata,
+    /// No frame was received, most likely because the timeout was reached.
+    None,
+    /// The SDK returned a frame type that is not recognized.
+    Unknown,
+    /// No frame was received, but the status of the connection changed.
+    /// Things like the web control URL could have changed
+    StatusChange,
+    /// The source the receiver is connected to has changed
+    SourceChange,
+}

@@ -1,16 +1,18 @@
+use std::sync::Arc;
+
 use super::{NDIFrame, RawBufferManagement, RawFrame, drop_guard::FrameDataDropGuard};
 
 pub(crate) use crate::bindings::NDIlib_audio_frame_v3_t as NDIRawAudioFrame;
-use crate::{bindings, four_cc::FourCCAudio};
+use crate::{bindings, four_cc::FourCCAudio, receiver::RawReceiver, sender::RawSender};
 
 impl RawBufferManagement for NDIRawAudioFrame {
     #[inline]
-    unsafe fn drop_with_recv(&mut self, recv: bindings::NDIlib_recv_instance_t) {
-        unsafe { bindings::NDIlib_recv_free_audio_v3(recv, self) }
+    unsafe fn drop_with_recv(&mut self, recv: &Arc<RawReceiver>) {
+        unsafe { bindings::NDIlib_recv_free_audio_v3(recv.raw_ptr(), self) }
     }
 
     #[inline]
-    unsafe fn drop_with_sender(&mut self, _sender: bindings::NDIlib_send_instance_t) {
+    unsafe fn drop_with_sender(&mut self, _sender: &Arc<RawSender>) {
         panic!(
             "NDIRawAudioFrame cannot be dropped with a sender as it cannot be received by the sender."
         )
@@ -27,6 +29,9 @@ impl RawBufferManagement for NDIRawAudioFrame {
         );
     }
 }
+
+unsafe impl Send for NDIRawAudioFrame {}
+unsafe impl Sync for NDIRawAudioFrame {}
 
 impl RawFrame for NDIRawAudioFrame {}
 

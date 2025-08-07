@@ -1,7 +1,5 @@
 use super::{RawFrame, drop_guard::FrameDataDropGuard};
 
-unsafe impl<Raw: RawFrame, C> Send for NDIFrame<Raw, C> where C: Send {}
-
 pub struct NDIFrame<Raw: RawFrame, C = ()> {
     pub(crate) raw: Raw,
     pub(crate) alloc: FrameDataDropGuard,

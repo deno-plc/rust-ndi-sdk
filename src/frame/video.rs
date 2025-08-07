@@ -1,14 +1,16 @@
 use num::ToPrimitive;
-use std::ffi::CStr;
 use std::fmt::Debug;
+use std::{ffi::CStr, sync::Arc};
 
 use num::Rational32;
 
 pub(crate) use crate::bindings::NDIlib_video_frame_v2_t as NDIRawVideoFrame;
+use crate::receiver::RawReceiver;
 use crate::{
     bindings,
     enums::NDIFieldedFrameMode,
     four_cc::{BufferInfoError, FourCC, FourCCVideo},
+    sender::RawSender,
     structs::{buffer_info::BufferInfo, resolution::Resolution},
     timecode::NDITime,
     util::VoidResult,
@@ -18,12 +20,12 @@ use super::{NDIFrame, RawBufferManagement, RawFrame, drop_guard::FrameDataDropGu
 
 impl RawBufferManagement for NDIRawVideoFrame {
     #[inline]
-    unsafe fn drop_with_recv(&mut self, recv: bindings::NDIlib_recv_instance_t) {
-        unsafe { bindings::NDIlib_recv_free_video_v2(recv, self) }
+    unsafe fn drop_with_recv(&mut self, recv: &Arc<RawReceiver>) {
+        unsafe { bindings::NDIlib_recv_free_video_v2(recv.raw_ptr(), self) }
     }
 
     #[inline]
-    unsafe fn drop_with_sender(&mut self, _sender: bindings::NDIlib_send_instance_t) {
+    unsafe fn drop_with_sender(&mut self, _sender: &Arc<RawSender>) {
         panic!(
             "NDIRawVideoFrame cannot be dropped with a sender as it cannot be received by the sender."
         )
@@ -40,6 +42,9 @@ impl RawBufferManagement for NDIRawVideoFrame {
         );
     }
 }
+
+unsafe impl Send for NDIRawVideoFrame {}
+unsafe impl Sync for NDIRawVideoFrame {}
 
 impl RawFrame for NDIRawVideoFrame {}
 

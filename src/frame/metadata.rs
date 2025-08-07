@@ -1,19 +1,22 @@
-use std::ffi::{CStr, CString};
+use std::{
+    ffi::{CStr, CString},
+    sync::Arc,
+};
 
-use crate::bindings;
 pub(crate) use crate::bindings::NDIlib_metadata_frame_t as NDIRawMetadataFrame;
+use crate::{bindings, receiver::RawReceiver, sender::RawSender};
 
 use super::{NDIFrame, RawBufferManagement, RawFrame, drop_guard::FrameDataDropGuard};
 
 impl RawBufferManagement for NDIRawMetadataFrame {
     #[inline]
-    unsafe fn drop_with_recv(&mut self, recv: bindings::NDIlib_recv_instance_t) {
-        unsafe { bindings::NDIlib_recv_free_metadata(recv, self) }
+    unsafe fn drop_with_recv(&mut self, recv: &Arc<RawReceiver>) {
+        unsafe { bindings::NDIlib_recv_free_metadata(recv.raw_ptr(), self) }
     }
 
     #[inline]
-    unsafe fn drop_with_sender(&mut self, sender: bindings::NDIlib_send_instance_t) {
-        unsafe { bindings::NDIlib_send_free_metadata(sender, self) }
+    unsafe fn drop_with_sender(&mut self, sender: &Arc<RawSender>) {
+        unsafe { bindings::NDIlib_send_free_metadata(sender.raw_ptr(), self) }
     }
 
     fn assert_unwritten(&self) {
@@ -23,6 +26,9 @@ impl RawBufferManagement for NDIRawMetadataFrame {
         );
     }
 }
+
+unsafe impl Send for NDIRawMetadataFrame {}
+unsafe impl Sync for NDIRawMetadataFrame {}
 
 impl RawFrame for NDIRawMetadataFrame {}
 
