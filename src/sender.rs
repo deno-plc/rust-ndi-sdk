@@ -154,6 +154,12 @@ impl Debug for RawSender {
 unsafe impl Send for RawSender {}
 unsafe impl Sync for RawSender {}
 
+/// A NDI sender that can send frames to a receiver.
+///
+/// Please note that the sender handle will not be dropped until all metadata frames
+/// that were received from it are dropped or have their buffers deallocated. If you
+/// dynamically create and destroy senders take into consideration that metadata frames
+/// may prevent the sender resources from being released.
 pub struct NDISender {
     handle: Arc<RawSender>,
     in_transmission: Mutex<Option<Arc<VideoFrame>>>,
@@ -217,7 +223,7 @@ impl NDISender {
     /// - After a call to `flush_async_video`
     /// - After the next call to `send_video_async`
     /// - After a call to `send_video_sync`
-    /// - When the `NDISender` is dropped
+    /// - When the `NDISender` is dropped (this is not affected by delayed dropping of the sender handle)
     pub fn send_video_async(&self, frame: Arc<VideoFrame>) -> Result<(), SendFrameError> {
         let ptr = frame.to_ffi_send_frame_ptr().map_err(|err| match err {
             crate::frame::generic::FFIReadablePtrError::NotReadable(desc) => {
@@ -385,6 +391,14 @@ impl NDISender {
     /// Removes all connection metadata that was previously added.
     pub fn clear_connection_metadata(&self) {
         unsafe { bindings::NDIlib_send_clear_connection_metadata(self.handle.raw_ptr()) };
+    }
+}
+
+impl Drop for NDISender {
+    fn drop(&mut self) {
+        // This is required because dropping the sender will also (potentially) drop the in-transmission frame,
+        // but the sender handle may outlive this if it has to wait for a metadata frame to be dropped.
+        self.flush_async_video();
     }
 }
 

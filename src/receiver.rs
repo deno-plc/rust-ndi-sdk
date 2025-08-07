@@ -154,6 +154,10 @@ impl Debug for RawReceiver {
 unsafe impl Send for RawReceiver {}
 unsafe impl Sync for RawReceiver {}
 
+/// A NDI receiver that can receive frames from a source.
+///
+/// Please note that the receiver handle (from the SDK) will not be dropped until all
+/// frames that were received from it are dropped or have their buffers deallocated.
 pub struct NDIReceiver {
     handle: Arc<RawReceiver>,
 }
