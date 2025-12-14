@@ -78,6 +78,7 @@ fn generate_bindings(builder: Builder) {
         .expect("Couldn't write docsrs bindings!");
 }
 
+/// Replaces `extern "C"` with stub functions for docs.rs builds
 fn stub_bindings(mut bindings: String) -> String {
     bindings = bindings.replace("\r\n", "\n");
 

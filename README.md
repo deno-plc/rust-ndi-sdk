@@ -3,11 +3,15 @@
 [![Crate](https://img.shields.io/crates/v/ndi-sdk-sys.svg)](https://crates.io/crates/ndi-sdk-sys)
 [![Documentation](https://docs.rs/ndi-sdk-sys/badge.svg)](https://docs.rs/ndi-sdk-sys)
 
-(WIP) Safe Rust bindings for the [NDI (ndi.video)](https://ndi.video/) SDK,
-enabling high-performance video, audio, and metadata transmission over IP
+Safe and ergonomic Rust bindings for the [NDI (ndi.video)](https://ndi.video/)
+SDK, enabling high-performance video, audio, and metadata transmission over IP
 networks.
 
-The API is still unstable.
+Unlike other bindings this never exposes any raw pointers and uses correct Rust
+types for everything (timeouts are handled as `std::time::Duration`, not
+`time_in_ms: u32`)
+
+Despite its name this is not affiliated with `ndi`, `ndi-sdk`, `ndi-sys` crates
 
 ## Features
 
@@ -18,6 +22,7 @@ The API is still unstable.
   - Sender API for transmitting NDI streams
   - Receiver API for receiving NDI streams
 - Not supported yet:
+  - Dynamic loading of NDI SDK
   - PTZ Control
   - FrameSync
   - Receiver advertisement
@@ -71,8 +76,8 @@ allocated, which may lead to out-of-bounds memory access by safe code.
 
 This crate provides safe abstractions of the NDI SDK. The public API is designed
 to be 100% safe to use (except unsafe APIs of course). If you encounter
-restrictive lifetimes, do not try to circumvent them, most likely it just
-represents the safety requirements of the C SDK.
+restrictive lifetimes or &mut borrows, do not try to circumvent them, most
+likely it just represents the safety requirements of the C SDK.
 
 As expected form a C library, safety requirements are not always documented
 in-depth by the NDI SDK. One common assumption this crate uses it that it is
@@ -94,6 +99,9 @@ Contributions are welcome! Here's how you can help:
 Copyright (C) 2025 Hans Schallmoser
 
 Licensed under GPL-v3.
+
+A lot of the doc comments is adapted from the
+[NDI Docs](https://docs.ndi.video/all/developing-with-ndi/sdk)
 
 Note: The NDI SDK is subject to its own
 [EULA](https://ndi.video/for-developers/#ndi-sdk).

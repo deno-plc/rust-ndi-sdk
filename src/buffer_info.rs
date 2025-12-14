@@ -1,9 +1,8 @@
-use crate::{
-    enums::NDIFieldedFrameMode,
-    structs::{resolution::Resolution, subsampling::Subsampling},
-};
+//! Contains information about the memory layout of video frame buffers
 
-/// Holds all information about the memory layout of a video frame buffer.
+use crate::{enums::NDIFieldedFrameMode, resolution::Resolution, subsampling::Subsampling};
+
+/// Contains information about the memory layout of video frame buffers
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub struct BufferInfo {

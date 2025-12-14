@@ -37,7 +37,10 @@ fn main() {
         println!("Found source: {:?}", source);
     }
 
-    let mut router = NDIRouterBuilder::new("Test Router").build().unwrap();
+    let mut router = NDIRouterBuilder::new("Test Router")
+        .unwrap()
+        .build()
+        .unwrap();
 
     let mut i = 0usize;
 

@@ -1,3 +1,5 @@
+//! Contains methods for the whole SDK like startup/shutdown, CPU support tests and version lookup
+
 use std::ffi::CStr;
 
 use crate::bindings;
@@ -24,9 +26,10 @@ fn test_get_version() {
 
 /// Detect whether the current CPU in the system is capable of running NDILib.
 /// Currently NDILib requires SSE4.2 instructions.
-/// https://docs.ndi.video/all/developing-with-ndi/sdk/cpu-requirements
+///
+/// <https://docs.ndi.video/all/developing-with-ndi/sdk/cpu-requirements>
 pub fn cpu_supported() -> bool {
-    unsafe { bindings::NDIlib_is_supported_CPU() == true }
+    unsafe { bindings::NDIlib_is_supported_CPU() }
 }
 
 #[cfg(test)]
@@ -38,11 +41,14 @@ fn test_cpu_supported() {
     );
 }
 
-/// [from NDI docs] This is not actually required, but will start the libraries which might result in a slightly better
+/// This is not actually required, but will start the libraries which might result in a slightly better
 /// performance in some cases. In general it is more "correct" to call it although it is not required.
-/// https://docs.ndi.video/all/developing-with-ndi/sdk/startup-and-shutdown
+///
+/// C equivalent: `NDIlib_initialize`
+///
+/// <https://docs.ndi.video/all/developing-with-ndi/sdk/startup-and-shutdown>
 pub fn initialize() -> Result<(), NDIInitError> {
-    if unsafe { bindings::NDIlib_initialize() == true } {
+    if unsafe { bindings::NDIlib_initialize() } {
         Ok(())
     } else if !cpu_supported() {
         Err(NDIInitError::UnsupportedCPU)
@@ -51,11 +57,14 @@ pub fn initialize() -> Result<(), NDIInitError> {
     }
 }
 
-/// [from NDI docs] This is not actually required, but will end the libraries which might result in a slightly better
+/// This is not actually required, but will end the libraries which might result in a slightly better
 /// performance in some cases. In general it is more "correct" to call it although it is not required.
 /// There is no way a call it could have an adverse impact on anything (even calling destroy before
 /// you've deleted all your objects).
-/// https://docs.ndi.video/all/developing-with-ndi/sdk/startup-and-shutdown
+///
+/// C equivalent: `NDIlib_destroy`
+///
+/// <https://docs.ndi.video/all/developing-with-ndi/sdk/startup-and-shutdown>
 pub fn destroy() {
     unsafe { bindings::NDIlib_destroy() }
 }

@@ -1,5 +1,6 @@
 use super::{RawFrame, drop_guard::FrameDataDropGuard};
 
+/// Common base for video/audio/metadata frames. Handles dynamic memory and other things
 pub struct NDIFrame<Raw: RawFrame, C = ()> {
     pub(crate) raw: Raw,
     pub(crate) alloc: FrameDataDropGuard,

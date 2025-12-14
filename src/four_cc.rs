@@ -1,7 +1,7 @@
 //! FourCC (Four Character Code) is a sequence of four bytes used to uniquely identify data formats.
 //!
-//! https://docs.ndi.video/all/developing-with-ndi/sdk/frame-types#video-frames-ndilib_video_frame_v2_t
-//! https://en.wikipedia.org/wiki/FourCC
+//! - <https://docs.ndi.video/all/developing-with-ndi/sdk/frame-types#video-frames-ndilib_video_frame_v2_t>
+//! - <https://en.wikipedia.org/wiki/FourCC>
 
 use std::fmt::{Debug, Display};
 
@@ -10,7 +10,7 @@ use num_enum::{IntoPrimitive, TryFromPrimitive};
 use crate::{
     bindings::{self, NDIlib_FourCC_audio_type_e, NDIlib_FourCC_video_type_e},
     enums::NDIFieldedFrameMode,
-    structs::{buffer_info::BufferInfo, resolution::Resolution, subsampling::Subsampling},
+    buffer_info::BufferInfo, resolution::Resolution, subsampling::Subsampling,
 };
 
 /// Possible FourCC values for video frames.
@@ -141,6 +141,7 @@ impl FourCC {
     }
 
     /// formats the FourCC as a string.
+    #[allow(clippy::inherent_to_string_shadow_display)] // This is a bit more efficient than Display
     pub fn to_string(&self) -> String {
         let bytes: [u8; 4] = self.code.to_le_bytes();
 

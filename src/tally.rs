@@ -1,9 +1,14 @@
+//! Tally indicator
+
 use crate::bindings;
 
+/// Tally indicator state
+///
+/// C equivalent: `NDIlib_tally_t`
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Tally {
-    pub(crate) program: bool,
-    pub(crate) preview: bool,
+    pub program: bool,
+    pub preview: bool,
 }
 
 impl Tally {
@@ -38,7 +43,7 @@ impl Tally {
         }
     }
 
-    pub(crate) fn to_ffi(&self) -> bindings::NDIlib_tally_t {
+    pub(crate) fn to_ffi(self) -> bindings::NDIlib_tally_t {
         bindings::NDIlib_tally_t {
             on_program: self.program,
             on_preview: self.preview,

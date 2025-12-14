@@ -8,12 +8,12 @@ pub(crate) use crate::bindings::NDIlib_video_frame_v2_t as NDIRawVideoFrame;
 use crate::receiver::RawReceiver;
 use crate::{
     bindings,
+    buffer_info::BufferInfo,
     enums::NDIFieldedFrameMode,
     four_cc::{BufferInfoError, FourCC, FourCCVideo},
+    resolution::Resolution,
     sender::RawSender,
-    structs::{buffer_info::BufferInfo, resolution::Resolution},
     timecode::NDITime,
-    util::VoidResult,
 };
 
 use super::{NDIFrame, RawBufferManagement, RawFrame, drop_guard::FrameDataDropGuard};
@@ -48,9 +48,16 @@ unsafe impl Sync for NDIRawVideoFrame {}
 
 impl RawFrame for NDIRawVideoFrame {}
 
-/// Represents a video frame in NDI.
+/// A Video frame
+///
 /// C equivalent: `NDIlib_video_frame_v2_t`
 pub type VideoFrame = NDIFrame<NDIRawVideoFrame>;
+
+impl Default for VideoFrame {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl VideoFrame {
     /// Constructs a new video frame (without allocating a frame buffer)
@@ -78,7 +85,7 @@ impl VideoFrame {
         }
     }
 
-    /// Generates a {BufferInfo} for the current resolution/FourCC/field mode
+    /// Generates a [BufferInfo] for the current resolution/FourCC/field mode
     pub fn buffer_info(&self) -> Result<BufferInfo, BufferInfoError> {
         if let Some(cc) = self.four_cc() {
             cc.buffer_info(self.resolution(), self.field_mode())
@@ -95,7 +102,7 @@ impl VideoFrame {
 
         let info = self
             .buffer_info()
-            .map_err(|err| VideoFrameAllocationError::BufferInfoError(err))?;
+            .map_err(VideoFrameAllocationError::BufferInfoError)?;
 
         let (alloc, ptr) = FrameDataDropGuard::new_boxed(info.size);
         self.alloc = alloc;
@@ -105,7 +112,7 @@ impl VideoFrame {
         Ok(())
     }
 
-    /// Allocates a frame buffer for the video frame. Panics if there is an error.
+    /// Allocates a frame buffer for the video frame. **Panics** if there is an error.
     pub fn alloc(&mut self) {
         self.try_alloc().unwrap();
     }
@@ -129,7 +136,7 @@ impl VideoFrame {
 
         let info = self
             .buffer_info()
-            .map_err(|err| VideoFrameAccessError::BufferInfoError(err))?;
+            .map_err(VideoFrameAccessError::BufferInfoError)?;
 
         assert_eq!(
             info.line_stride,
@@ -159,7 +166,7 @@ impl VideoFrame {
 
         let info = self
             .buffer_info()
-            .map_err(|err| VideoFrameAccessError::BufferInfoError(err))?;
+            .map_err(VideoFrameAccessError::BufferInfoError)?;
 
         assert_eq!(
             info.line_stride,
@@ -210,9 +217,9 @@ impl VideoFrame {
 
     /// Sets the resolution of the frame.
     /// This will fail if the frame is already allocated.
-    pub fn set_resolution(&mut self, resolution: Resolution) -> VoidResult {
+    pub fn set_resolution(&mut self, resolution: Resolution) -> Result<(), AlreadyAllocatedError> {
         if self.is_allocated() {
-            Err(())
+            Err(AlreadyAllocatedError {})
         } else {
             (self.raw.xres, self.raw.yres) = resolution.to_i32();
 
@@ -236,9 +243,9 @@ impl VideoFrame {
 
     /// Sets the FourCC format of the frame.
     /// This will fail if the frame is already allocated.
-    pub fn set_four_cc(&mut self, four_cc: FourCCVideo) -> VoidResult {
+    pub fn set_four_cc(&mut self, four_cc: FourCCVideo) -> Result<(), AlreadyAllocatedError> {
         if self.is_allocated() {
-            Err(())
+            Err(AlreadyAllocatedError {})
         } else {
             self.raw.FourCC = four_cc.to_ffi();
             Ok(())
@@ -270,9 +277,12 @@ impl VideoFrame {
     }
     /// sets the field mode of the frame.
     /// This will fail if the frame is already allocated.
-    pub fn set_frame_format(&mut self, frame_format: NDIFieldedFrameMode) -> VoidResult {
+    pub fn set_frame_format(
+        &mut self,
+        frame_format: NDIFieldedFrameMode,
+    ) -> Result<(), AlreadyAllocatedError> {
         if self.is_allocated() {
-            Err(())
+            Err(AlreadyAllocatedError {})
         } else {
             self.raw.frame_format_type = frame_format.to_ffi();
             Ok(())
@@ -299,41 +309,64 @@ impl VideoFrame {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct AlreadyAllocatedError {}
+
 // Dangerous APIs
 #[cfg(feature = "dangerous_apis")]
 impl VideoFrame {
     /// Forcefully sets the resolution even if the frame is allocated.
-    /// This should be used with extreme caution.
+    ///
+    /// <div class="warning">
+    /// This API is extremely dangerous and should only be used with extreme caution.
+    ///
     /// If used incorrectly, it can lead to memory corruption by out-of-bounds access.
+    /// </div>
     pub unsafe fn force_set_resolution(&mut self, resolution: Resolution) {
         (self.raw.xres, self.raw.yres) = resolution.to_i32();
         self.raw.picture_aspect_ratio = resolution.aspect_ratio() as f32;
     }
 
     /// Forcefully sets the FourCC even if the frame is allocated.
-    /// This should be used with extreme caution.
+    ///
+    /// <div class="warning">
+    /// This API is extremely dangerous and should only be used with extreme caution.
+    ///
     /// If used incorrectly, it can lead to memory corruption by out-of-bounds access.
+    /// </div>
     pub unsafe fn force_set_four_cc(&mut self, four_cc: FourCCVideo) {
         self.raw.FourCC = four_cc.to_ffi();
     }
 
     /// Forcefully sets the FourCC even if the frame is allocated.
-    /// This should be used with extreme caution.
+    ///
+    /// <div class="warning">
+    /// This API is extremely dangerous and should only be used with extreme caution.
+    ///
     /// If used incorrectly, it can lead to memory corruption by out-of-bounds access.
+    /// </div>
     pub unsafe fn force_set_raw_four_cc(&mut self, four_cc: FourCC) {
         self.raw.FourCC = four_cc.to_ffi();
     }
 
     /// Forcefully sets the field mode even if the frame is allocated.
-    /// This should be used with extreme caution.
+    ///
+    /// <div class="warning">
+    /// This API is extremely dangerous and should only be used with extreme caution.
+    ///
     /// If used incorrectly, it can lead to memory corruption by out-of-bounds access.
+    /// </div>
     pub unsafe fn force_set_frame_format(&mut self, frame_format: NDIFieldedFrameMode) {
         self.raw.frame_format_type = frame_format.to_ffi();
     }
 
-    /// This should be used with extreme caution.
+    ///
+    /// <div class="warning">
+    /// This API is extremely dangerous and should only be used with extreme caution.
+    ///
     /// If used incorrectly, it can lead to memory corruption by out-of-bounds access.
-    unsafe fn set_lib_stride(&mut self, stride: i32) {
+    /// </div>
+    pub unsafe fn set_lib_stride(&mut self, stride: i32) {
         self.raw.__bindgen_anon_1.line_stride_in_bytes = stride;
     }
 }

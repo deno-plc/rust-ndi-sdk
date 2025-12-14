@@ -1,9 +1,26 @@
+//! NDI source finder
+//!
+//! This is provided to locate sources available on the network and is normally used in conjunction with **NDI-Receive**.
+//! Internally, it uses a cross-process P2P mDNS implementation to locate sources on the network.
+//! (It commonly takes a few seconds to locate all the sources available since this requires other running machines to send response messages.)
+//!
+//! Although discovery uses mDNS, the client is entirely self-contained; Bonjour (etc.) is not required.
+//! mDNS is a P2P system that exchanges located network sources and provides a highly robust and bandwidth-efficient way to perform discovery on a local network.
+//!
+//! On mDNS initialization (often done using the **NDI-FIND** SDK), a few seconds might elapse before all sources on the network are located.
+//! Be aware that some network routers might block mDNS traffic between network segments.
+//!
+//! <https://docs.ndi.video/all/developing-with-ndi/sdk/ndi-find>
+
 use core::slice;
 use std::time::Duration;
 
-use crate::{bindings, source::NDISourceRef, structs::BlockingUpdate};
+use crate::{
+    bindings, blocking_update::BlockingUpdate, source::NDISourceRef, util::duration_to_ms,
+};
 
-/// wrapper for `NDIlib_find_create_t`
+/// Builder for [NDISourceFinder]
+#[non_exhaustive]
 #[derive(Debug, Clone)]
 pub struct NDISourceFinderBuilder {
     show_local_sources: bool,
@@ -22,6 +39,7 @@ impl NDISourceFinderBuilder {
         Self::default()
     }
 
+    /// Show sources from this device (default: true)
     pub fn show_local_sources(mut self, show: bool) -> Self {
         self.show_local_sources = show;
         self
@@ -35,14 +53,18 @@ impl NDISourceFinderBuilder {
         };
         let handle = unsafe { bindings::NDIlib_find_create_v2(&options) };
         if handle.is_null() {
-            return None;
+            None
         } else {
             Some(NDISourceFinder { handle })
         }
     }
 }
 
-/// wrapper for `NDIlib_find_instance_t`
+/// NDI Source finder
+///
+/// For more information see module docs
+///
+/// C equivalent: `NDIlib_find_instance_t`
 #[derive(Debug)]
 pub struct NDISourceFinder {
     handle: bindings::NDIlib_find_instance_t,
@@ -50,9 +72,15 @@ pub struct NDISourceFinder {
 unsafe impl Send for NDISourceFinder {}
 
 impl<'a> NDISourceFinder {
-    /// Returns an iterator over the sources currently known to this device
-    pub fn get_source_iter(&'a mut self) -> Option<NDISourceIterator<'a>> {
+    /// Returns an iterator over the sources currently known to this device[^note]
+    ///
+    /// [^note]: Yes this really needs an `&mut` as calling `NDIlib_find_get_current_sources` invalidates all previous iterators
+    pub fn get_source_iter(&'a mut self) -> Option<impl Iterator<Item = NDISourceRef<'a>>> {
         let mut num_sources = 0u32;
+
+        // SDK Docs: The pointer returned by NDIlib_find_get_current_sources is owned by the finder instance, so there is no reason to free it. It will be retained until the next call to NDIlib_find_get_current_sources, or until the NDIlib_find_destroy function is destroyed.
+
+        // We borrow self &mut, and therefore the iterator ('a) can only live as long we have the only borrow to the instance
         let sources =
             unsafe { bindings::NDIlib_find_get_current_sources(self.handle, &mut num_sources) };
 
@@ -62,18 +90,17 @@ impl<'a> NDISourceFinder {
 
         let src_slice = unsafe { slice::from_raw_parts(sources, num_sources as usize) };
 
-        Some(NDISourceIterator {
-            iter: src_slice.into_iter(),
-        })
+        Some(
+            src_slice
+                .iter()
+                .map(|src| unsafe { NDISourceRef::from(*src) }),
+        )
     }
 
+    /// Blocks until the source list changes or the timeout is reached
     pub fn wait_for_change(&mut self, timeout: Duration) -> BlockingUpdate<()> {
-        let changed = unsafe {
-            bindings::NDIlib_find_wait_for_sources(
-                self.handle,
-                timeout.as_millis().try_into().unwrap_or(u32::MAX),
-            )
-        };
+        let changed =
+            unsafe { bindings::NDIlib_find_wait_for_sources(self.handle, duration_to_ms(timeout)) };
 
         BlockingUpdate::new((), changed)
     }
@@ -82,20 +109,5 @@ impl<'a> NDISourceFinder {
 impl Drop for NDISourceFinder {
     fn drop(&mut self) {
         unsafe { bindings::NDIlib_find_destroy(self.handle) }
-    }
-}
-
-pub struct NDISourceIterator<'a> {
-    iter: slice::Iter<'a, bindings::NDIlib_source_t>,
-}
-impl<'a> Iterator for NDISourceIterator<'a> {
-    type Item = NDISourceRef<'a>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if let Some(source) = self.iter.next() {
-            Some(NDISourceRef::from(source))
-        } else {
-            None
-        }
     }
 }

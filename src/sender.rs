@@ -1,3 +1,5 @@
+//! NDI Sender
+
 use std::{
     ffi::CString,
     fmt::Debug,
@@ -10,16 +12,20 @@ use static_assertions::assert_impl_all;
 
 use crate::{
     bindings,
+    blocking_update::BlockingUpdate,
+    enums::NDIRecvError,
     frame::{
         audio::AudioFrame,
-        generic::{AsFFIReadable, AsFFIWritable},
+        generic::{AsFFIReadable, AsFFIWritable, FFIReadablePtrError},
         metadata::MetadataFrame,
         video::VideoFrame,
     },
     source::{NDISourceLike, NDISourceRef},
-    structs::{BlockingUpdate, tally::Tally},
+    tally::Tally,
+    util::{SourceNameError, duration_to_ms, validate_source_name},
 };
 
+/// Builder for [NDISender]
 #[non_exhaustive]
 #[derive(Debug, Clone)]
 pub struct NDISenderBuilder {
@@ -29,6 +35,7 @@ pub struct NDISenderBuilder {
     pub clock_audio: bool,
 }
 
+#[allow(clippy::derivable_impls)]
 impl Default for NDISenderBuilder {
     fn default() -> Self {
         Self {
@@ -50,12 +57,8 @@ impl NDISenderBuilder {
     /// The total length of an NDI source name should be limited to 253 characters. The following characters
     /// are considered invalid: \ / : * ? " < > |. If any of these characters are found in the name, they will
     /// be replaced with a space. These characters are reserved according to Windows file system naming conventions
-    pub fn name(mut self, name: &str) -> Result<Self, SenderNameError> {
-        let name = CString::new(name).map_err(|e| SenderNameError::NulError(e))?;
-        if name.count_bytes() >= 253 {
-            Err(SenderNameError::TooLong)?;
-        }
-        self.name = Some(name);
+    pub fn name(mut self, name: &str) -> Result<Self, SourceNameError> {
+        self.name = Some(validate_source_name(name)?);
         Ok(self)
     }
 
@@ -66,7 +69,7 @@ impl NDISenderBuilder {
     /// For instance, "cameras,studio 1,10am show" would place a source in the three groups named.
     /// On the finding side, you can specify which groups to look for and look in multiple groups.
     /// If the group is not set then the system default groups will be used.
-    /// https://docs.ndi.video/all/developing-with-ndi/sdk/ndi-send#parameters
+    /// <https://docs.ndi.video/all/developing-with-ndi/sdk/ndi-send#parameters>
     pub fn groups(mut self, groups: &str) -> Self {
         self.groups = Some(CString::new(groups).unwrap());
         self
@@ -74,7 +77,7 @@ impl NDISenderBuilder {
 
     /// When enabled the SDK will limit the frame rate for video frames.
     /// The send function will block until the next frame is ready to be sent.
-    /// https://docs.ndi.video/all/developing-with-ndi/sdk/ndi-send#parameters
+    /// <https://docs.ndi.video/all/developing-with-ndi/sdk/ndi-send#parameters>
     pub fn clock_video(mut self, clock_video: bool) -> Self {
         self.clock_video = clock_video;
         self
@@ -82,18 +85,11 @@ impl NDISenderBuilder {
 
     /// When enabled the SDK will limit the frame rate for audio frames.
     /// The send function will block until the next frame is ready to be sent.
-    /// https://docs.ndi.video/all/developing-with-ndi/sdk/ndi-send#parameters
+    /// <https://docs.ndi.video/all/developing-with-ndi/sdk/ndi-send#parameters>
     pub fn clock_audio(mut self, clock_audio: bool) -> Self {
         self.clock_audio = clock_audio;
         self
     }
-}
-
-#[non_exhaustive]
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum SenderNameError {
-    NulError(std::ffi::NulError),
-    TooLong,
 }
 
 impl NDISenderBuilder {
@@ -171,6 +167,7 @@ assert_impl_all!(
 
 impl NDISender {
     /// Sends a video frame
+    ///
     /// This will block until the frame is sent.
     pub fn send_video_sync(&self, frame: &VideoFrame) -> Result<(), SendFrameError> {
         let ptr = frame.to_ffi_send_frame_ptr().map_err(|err| match err {
@@ -189,11 +186,12 @@ impl NDISender {
 
     /// This updates the Arc reference for the frame that is held in the background of async transmissions
     ///
-    /// SAFETY:
+    /// # Safety
+    ///
     /// This function may drop the frame of a previous transmission through the Arc. If this is called to
     /// early, it may lead to a use-after-free error and frame glitches.
     ///
-    /// https://docs.ndi.video/all/developing-with-ndi/sdk/ndi-send#asynchronous-sending
+    /// <https://docs.ndi.video/all/developing-with-ndi/sdk/ndi-send#asynchronous-sending>
     unsafe fn write_in_transmission(&self, frame: Option<Arc<VideoFrame>>) {
         match self.in_transmission.lock() {
             Ok(mut guard) => {
@@ -208,14 +206,16 @@ impl NDISender {
 
     /// Sends a video frame asynchronously.
     ///
-    /// > https://docs.ndi.video/all/developing-with-ndi/sdk/ndi-send#asynchronous-sending
+    /// > <https://docs.ndi.video/all/developing-with-ndi/sdk/ndi-send#asynchronous-sending>
     /// >
     /// > This function will return immediately and will perform all required operations (including color conversion,
     /// > compression, and network transmission) asynchronously with the call.
     /// > Because NDI takes full advantage of asynchronous OS behavior when available, this will normally result in
     /// > improved performance (as compared to creating your own thread and submitting frames asynchronously with rendering).
     ///
-    /// Blocking: This function does not block by default, but it will block in the following cases:
+    /// # Blocking
+    ///
+    /// This function does not block by default, but it will block in the following cases:
     /// - The previous frame is still in transmission
     /// - The sender uses [NDISenderBuilder::clock_video]
     ///
@@ -226,9 +226,7 @@ impl NDISender {
     /// - When the `NDISender` is dropped (this is not affected by delayed dropping of the sender handle)
     pub fn send_video_async(&self, frame: Arc<VideoFrame>) -> Result<(), SendFrameError> {
         let ptr = frame.to_ffi_send_frame_ptr().map_err(|err| match err {
-            crate::frame::generic::FFIReadablePtrError::NotReadable(desc) => {
-                SendFrameError::NotSendable(desc)
-            }
+            FFIReadablePtrError::NotReadable(desc) => SendFrameError::NotSendable(desc),
         })?;
 
         unsafe {
@@ -249,9 +247,7 @@ impl NDISender {
 
     pub fn send_audio(&self, frame: &AudioFrame) -> Result<(), SendFrameError> {
         let ptr = frame.to_ffi_send_frame_ptr().map_err(|err| match err {
-            crate::frame::generic::FFIReadablePtrError::NotReadable(desc) => {
-                SendFrameError::NotSendable(desc)
-            }
+            FFIReadablePtrError::NotReadable(desc) => SendFrameError::NotSendable(desc),
         })?;
 
         unsafe {
@@ -263,9 +259,7 @@ impl NDISender {
 
     pub fn send_metadata(&self, frame: &MetadataFrame) -> Result<(), SendFrameError> {
         let ptr = frame.to_ffi_send_frame_ptr().map_err(|err| match err {
-            crate::frame::generic::FFIReadablePtrError::NotReadable(desc) => {
-                SendFrameError::NotSendable(desc)
-            }
+            FFIReadablePtrError::NotReadable(desc) => SendFrameError::NotSendable(desc),
         })?;
 
         unsafe {
@@ -280,11 +274,14 @@ impl NDISender {
         &self,
         meta: &mut MetadataFrame,
         timeout: Duration,
-    ) -> Result<Option<()>, ()> {
+    ) -> Result<Option<()>, NDIRecvError> {
         let ptr = meta.to_ffi_recv_frame_ptr();
 
         if ptr.is_null() {
-            return Err(());
+            eprintln!(
+                "[Warning] The frame given to NDISender::recv_metadata is not writable, ignoring"
+            );
+            return Ok(None);
         }
 
         let timeout: u32 = timeout.as_millis().try_into().unwrap_or(u32::MAX);
@@ -298,7 +295,7 @@ impl NDISender {
                 panic!("[Fatal FFI Error] Invalid enum discriminant");
             }
             bindings::NDIlib_frame_type_e_NDIlib_frame_type_metadata => {
-                meta.alloc.from_sender(self.handle.clone());
+                meta.alloc.update_from_sender(self.handle.clone());
                 Ok(Some(()))
             }
             bindings::NDIlib_frame_type_e_NDIlib_frame_type_none => Ok(None),
@@ -307,7 +304,7 @@ impl NDISender {
 
                 meta.assert_unwritten();
 
-                Err(())
+                Err(NDIRecvError::UnknownType)
             }
         }
     }
@@ -326,7 +323,7 @@ impl NDISender {
 
     /// Blocks until the tally state changes or the timeout is reached.
     pub fn get_tally_update(&self, timeout: Duration) -> BlockingUpdate<Tally> {
-        let timeout: u32 = timeout.as_millis().try_into().unwrap_or(u32::MAX);
+        let timeout: u32 = duration_to_ms(timeout);
 
         let mut tally = bindings::NDIlib_tally_t {
             on_program: false,
@@ -334,7 +331,11 @@ impl NDISender {
         };
 
         let changed = unsafe {
-            bindings::NDIlib_send_get_tally(self.handle.raw_ptr(), &mut tally, timeout) == true
+            // NDI Docs:
+            // Determine the current tally sate. If you specify a timeout then it will wait until it has changed,
+            // otherwise it will simply poll it and return the current tally immediately. The return value is whether
+            // anything has actually change (true) or whether it timed out (false)
+            bindings::NDIlib_send_get_tally(self.handle.raw_ptr(), &mut tally, timeout)
         };
 
         BlockingUpdate::new(Tally::from_ffi(&tally), changed)
@@ -342,7 +343,7 @@ impl NDISender {
 
     /// Blocks until the number of connections changes or the timeout is reached.
     pub fn get_num_connections_update(&self, timeout: Duration) -> usize {
-        let timeout: u32 = timeout.as_millis().try_into().unwrap_or(u32::MAX);
+        let timeout: u32 = duration_to_ms(timeout);
 
         let no_conns =
             unsafe { bindings::NDIlib_send_get_no_connections(self.handle.raw_ptr(), timeout) };
@@ -353,7 +354,8 @@ impl NDISender {
     }
 
     /// Sets the failover source, which is used when the receiver cannot receive frames from this source anymore.
-    /// https://docs.ndi.video/all/developing-with-ndi/sdk/ndi-send#failsafe
+    ///
+    /// <https://docs.ndi.video/all/developing-with-ndi/sdk/ndi-send#failsafe>
     pub fn set_failover(&self, failover_src: impl NDISourceLike) {
         failover_src.with_descriptor(|src_ptr| {
             unsafe { bindings::NDIlib_send_set_failover(self.handle.raw_ptr(), src_ptr) };
@@ -366,7 +368,7 @@ impl NDISender {
 
         unsafe {
             NDISourceRef::from(
-                source
+                *source
                     .as_ref()
                     .expect("[Fatal FFI Error] NDI SDK returned nullptr for source descriptor"),
             )

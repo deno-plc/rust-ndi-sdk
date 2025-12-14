@@ -2,7 +2,7 @@ use std::time::Instant;
 
 use ndi_sdk_sys::{
     four_cc::FourCCVideo, frame::video::VideoFrame, sdk, sender::NDISenderBuilder,
-    structs::resolution::Resolution,
+    resolution::Resolution,
 };
 
 fn main() {

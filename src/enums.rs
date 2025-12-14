@@ -7,9 +7,10 @@ use crate::{
     four_cc::FourCCVideo,
 };
 
-/// C equivalent: `NDIlib_recv_color_format_e`
 /// This enum describes the preferred color format for receiving video frames.
 /// If you can handle all color formats you should use `Fastest`
+///
+/// C equivalent: `NDIlib_recv_color_format_e`
 #[repr(i32)]
 #[non_exhaustive]
 #[allow(non_camel_case_types)]
@@ -26,15 +27,17 @@ pub enum NDIPreferredColorFormat {
 }
 
 impl NDIPreferredColorFormat {
-    pub fn to_ffi(self) -> NDIlib_recv_color_format_e {
+    pub(crate) fn to_ffi(self) -> NDIlib_recv_color_format_e {
         self.into()
     }
 
-    pub fn from_ffi(value: NDIlib_recv_color_format_e) -> Option<Self> {
+    #[expect(unused)]
+    pub(crate) fn from_ffi(value: NDIlib_recv_color_format_e) -> Option<Self> {
         Self::try_from_primitive(value).ok()
     }
 
     /// Returns the FourCC type that will be used for frames without alpha channel.
+    ///
     /// None indicates that the resulting FourCC type cannot statically be known
     pub const fn without_alpha_four_cc(self) -> Option<FourCCVideo> {
         match self {
@@ -48,6 +51,7 @@ impl NDIPreferredColorFormat {
     }
 
     /// Returns the FourCC type that will be used for frames with alpha channel.
+    ///
     /// None indicates that the resulting FourCC type cannot statically be known
     pub const fn with_alpha_four_cc(self) -> Option<FourCCVideo> {
         match self {
@@ -61,8 +65,10 @@ impl NDIPreferredColorFormat {
         }
     }
 
-    /// Try to create a preferred color format from the given FourCC types.
-    /// only a few combinations are allowed by the SDK, in case of an unsupported combination this will return Err(FromFourCCError::UnsupportedCombination).
+    /// Tries to create a preferred color format from the given FourCC types.
+    ///
+    /// Only a few combinations are allowed by the SDK, in case of an unsupported combination this will return Err(FromFourCCError::UnsupportedCombination).
+    ///
     /// A None argument means Don't care
     pub fn from_four_cc(
         with_alpha: Option<FourCCVideo>,
@@ -130,6 +136,11 @@ pub enum FromFourCCError {
     UnsupportedCombination,
 }
 
+/// Selects which types of frames are transmitted and which quality is used
+///
+/// This can be beneficial for preview screens or if you only want metadata
+///
+/// C equivalent: `NDIlib_recv_bandwidth_e`
 #[repr(i32)]
 #[non_exhaustive]
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
@@ -142,17 +153,20 @@ pub enum NDIBandwidthMode {
 }
 
 impl NDIBandwidthMode {
-    pub fn to_ffi(self) -> NDIlib_recv_bandwidth_e {
+    pub(crate) fn to_ffi(self) -> NDIlib_recv_bandwidth_e {
         self.into()
     }
 
-    pub fn from_ffi(value: NDIlib_recv_bandwidth_e) -> Option<Self> {
+    #[expect(unused)]
+    pub(crate) fn from_ffi(value: NDIlib_recv_bandwidth_e) -> Option<Self> {
         Self::try_from_primitive(value).ok()
     }
 }
 
 /// Video frames can be fielded (even and odd lines are sent in separate frames), this enum
-/// describes the fielding mode
+/// describes if fielding is used and which half is in the current frame
+///
+/// C equivalent: `NDIlib_frame_format_type_e`
 #[repr(i32)]
 #[non_exhaustive]
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
@@ -194,6 +208,7 @@ impl NDIFieldedFrameMode {
     }
 }
 
+/// Describes which frame type was received
 #[must_use]
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
@@ -206,11 +221,18 @@ pub enum NDIRecvType {
     Metadata,
     /// No frame was received, most likely because the timeout was reached.
     None,
-    /// The SDK returned a frame type that is not recognized.
-    Unknown,
     /// No frame was received, but the status of the connection changed.
     /// Things like the web control URL could have changed
     StatusChange,
     /// The source the receiver is connected to has changed
     SourceChange,
+}
+
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+pub enum NDIRecvError {
+    /// The SDK returned a frame type that is not recognized.
+    UnknownType,
+    /// The frame to be written to is not writable
+    NotWritable,
 }

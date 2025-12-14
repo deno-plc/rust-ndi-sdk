@@ -1,3 +1,7 @@
+//! NDI Receiver
+//!
+//! <https://docs.ndi.video/all/developing-with-ndi/sdk/ndi-recv>
+
 use std::{
     ffi::{CStr, CString},
     fmt::Debug,
@@ -10,7 +14,7 @@ use static_assertions::assert_impl_all;
 
 use crate::{
     bindings::{self},
-    enums::{NDIBandwidthMode, NDIPreferredColorFormat},
+    enums::{NDIBandwidthMode, NDIPreferredColorFormat, NDIRecvError},
     frame::{
         audio::AudioFrame,
         generic::{AsFFIReadable, AsFFIWritable},
@@ -18,11 +22,13 @@ use crate::{
         video::VideoFrame,
     },
     source::NDISourceLike,
-    structs::tally::Tally,
+    tally::Tally,
+    util::duration_to_ms,
 };
 
 pub use crate::enums::NDIRecvType;
 
+/// Builder for [NDIReceiver]
 #[non_exhaustive]
 #[derive(Debug, Clone)]
 pub struct NDIReceiverBuilder<Source: NDISourceLike> {
@@ -157,7 +163,9 @@ unsafe impl Sync for RawReceiver {}
 /// A NDI receiver that can receive frames from a source.
 ///
 /// Please note that the receiver handle (from the SDK) will not be dropped until all
-/// frames that were received from it are dropped or have their buffers deallocated.
+/// frames that were received from it are dropped or have their buffers deallocated.[^note]
+///
+/// [^note]: The inner receiver is [Arc]ed because all frames received need to be dropped on the receiver handle and therefore need a valid reference to it
 pub struct NDIReceiver {
     handle: Arc<RawReceiver>,
 }
@@ -166,7 +174,7 @@ assert_impl_all!(NDIReceiver: Send, Sync);
 
 impl NDIReceiver {
     /// Switches the receiver to the given source.
-    pub fn set_source(&self, source: impl NDISourceLike) {
+    pub fn set_source(&self, source: &impl NDISourceLike) {
         source.with_descriptor(|src_ptr| {
             unsafe { bindings::NDIlib_recv_connect(self.handle.raw_ptr(), src_ptr) };
         });
@@ -179,7 +187,7 @@ impl NDIReceiver {
         mut audio: Option<&mut AudioFrame>,
         mut meta: Option<&mut MetadataFrame>,
         timeout: Duration,
-    ) -> NDIRecvType {
+    ) -> Result<NDIRecvType, NDIRecvError> {
         let video_ptr = video.to_ffi_recv_frame_ptr();
         if video_ptr.is_null() {
             video = None; // make sure NullPtr's are consistent with the option
@@ -195,7 +203,7 @@ impl NDIReceiver {
             meta = None; // make sure NullPtr's are consistent with the option
         }
 
-        let timeout: u32 = timeout.as_millis().try_into().unwrap_or(u32::MAX);
+        let timeout: u32 = duration_to_ms(timeout);
 
         let recv_type = unsafe {
             bindings::NDIlib_recv_capture_v3(
@@ -213,7 +221,7 @@ impl NDIReceiver {
                     .expect(
                         "[Fatal FFI Error] SDK indicated that a video frame was received, but there is no buffer it could have been written to",
                     )
-                    .alloc.from_receiver(self.handle.clone());
+                    .alloc.update_from_receiver(self.handle.clone());
 
                 #[cfg(any(debug_assertions, feature = "strict_assertions"))]
                 {
@@ -225,14 +233,14 @@ impl NDIReceiver {
                     }
                 }
 
-                NDIRecvType::Video
+                Ok(NDIRecvType::Video)
             }
             bindings::NDIlib_frame_type_e_NDIlib_frame_type_audio => {
                 audio
                     .expect(
                         "[Fatal FFI Error] SDK indicated that an audio frame was received, but there is no buffer it could have been written to",
                     )
-                    .alloc.from_receiver(self.handle.clone());
+                    .alloc.update_from_receiver(self.handle.clone());
 
                 #[cfg(any(debug_assertions, feature = "strict_assertions"))]
                 {
@@ -244,13 +252,13 @@ impl NDIReceiver {
                     }
                 }
 
-                NDIRecvType::Audio
+                Ok(NDIRecvType::Audio)
             }
             bindings::NDIlib_frame_type_e_NDIlib_frame_type_metadata => {
                 meta.expect(
                     "[Fatal FFI Error] SDK indicated that a metadata frame was received, but there is no buffer it could have been written to",
                 )
-                .alloc.from_receiver(self.handle.clone());
+                .alloc.update_from_receiver(self.handle.clone());
 
                 #[cfg(any(debug_assertions, feature = "strict_assertions"))]
                 {
@@ -262,7 +270,7 @@ impl NDIReceiver {
                     }
                 }
 
-                NDIRecvType::Metadata
+                Ok(NDIRecvType::Metadata)
             }
             bindings::NDIlib_frame_type_e_NDIlib_frame_type_status_change => {
                 #[cfg(any(debug_assertions, feature = "strict_assertions"))]
@@ -278,7 +286,7 @@ impl NDIReceiver {
                     }
                 }
 
-                NDIRecvType::StatusChange
+                Ok(NDIRecvType::StatusChange)
             }
             bindings::NDIlib_frame_type_e_NDIlib_frame_type_source_change => {
                 #[cfg(any(debug_assertions, feature = "strict_assertions"))]
@@ -294,7 +302,7 @@ impl NDIReceiver {
                     }
                 }
 
-                NDIRecvType::SourceChange
+                Ok(NDIRecvType::SourceChange)
             }
             bindings::NDIlib_frame_type_e_NDIlib_frame_type_none => {
                 #[cfg(any(debug_assertions, feature = "strict_assertions"))]
@@ -310,7 +318,7 @@ impl NDIReceiver {
                     }
                 }
 
-                NDIRecvType::None
+                Ok(NDIRecvType::None)
             }
             #[cfg(any(debug_assertions, feature = "strict_assertions"))]
             discriminant => {
@@ -326,7 +334,7 @@ impl NDIReceiver {
                     meta.assert_unwritten();
                 }
 
-                NDIRecvType::Unknown
+                Err(NDIRecvError::UnknownType)
             }
             #[cfg(not(any(debug_assertions, feature = "strict_assertions")))]
             _ => NDIRecvType::Unknown,
@@ -392,7 +400,7 @@ impl NDIReceiver {
     }
 
     /// Get the web control URL for the receiver.
-    pub fn get_web_control(&self) -> Option<NDIWebControlInfo> {
+    pub fn get_web_control(&self) -> Option<NDIWebControlInfo<'_>> {
         let ptr = unsafe { bindings::NDIlib_recv_get_web_control(self.handle.raw_ptr()) };
 
         if ptr.is_null() {

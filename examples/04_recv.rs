@@ -25,7 +25,7 @@ fn main() {
     println!("NDI initialized successfully");
 
     let receiver = NDIReceiverBuilder::new()
-        .source(NDISource::from_name(&source_name))
+        .source(NDISource::from_name(&source_name).expect("Invalid source name provided"))
         .allow_fielded_video(false)
         .color_format(
             NDIPreferredColorFormat::from_four_cc(Some(FourCCVideo::RGBA), Some(FourCCVideo::RGBX))
@@ -38,12 +38,15 @@ fn main() {
     let mut metadata = MetadataFrame::new();
 
     loop {
-        match receiver.recv(
-            Some(&mut video),
-            None,
-            Some(&mut metadata),
-            Duration::from_secs(1),
-        ) {
+        match receiver
+            .recv(
+                Some(&mut video),
+                None,
+                Some(&mut metadata),
+                Duration::from_secs(1),
+            )
+            .unwrap()
+        {
             NDIRecvType::Video => {
                 println!("Received video frame {:#?}", video);
                 if let Ok((data, info)) = video.video_data() {

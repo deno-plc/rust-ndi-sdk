@@ -1,7 +1,15 @@
+//! Chroma subsampling
+//!
+//! <https://docs.ndi.video/all/using-ndi/ndi-for-video/digital-video-basics#chroma-subsampling>
+
 use std::fmt::Debug;
 use std::fmt::Display;
 
 /// Describes the chroma subsampling system
+///
+/// The struct fields represent the numbers of the typical `<x_ref>:<x_samples>:<x2_samples>` format
+///
+/// <https://docs.ndi.video/all/using-ndi/ndi-for-video/digital-video-basics#chroma-subsampling>
 #[derive(Clone, Copy, Hash, PartialEq, Eq)]
 pub struct Subsampling {
     pub x_ref: u8,
@@ -34,6 +42,7 @@ impl Subsampling {
         }
     }
 
+    /// `4:4:4` (no subsampling)
     pub const fn none() -> Self {
         Subsampling {
             x_ref: 4,
@@ -46,6 +55,7 @@ impl Subsampling {
         self.x_ref != self.x_samples || self.x_ref != self.x2_samples
     }
 
+    /// Checks if the subsampling format is regular, if a format is irregular it just doesn't make any sense
     pub const fn is_regular(&self) -> bool {
         if self.x_ref == 0 {
             return false;
@@ -55,17 +65,14 @@ impl Subsampling {
             return false;
         }
 
-        if self.x_ref % self.x_samples != 0 {
-            return false;
-        }
-
-        if self.x2_samples % self.x_samples != 0 {
-            return false;
-        }
-
-        true
+        self.x_ref.is_multiple_of(self.x_samples) && self.x2_samples.is_multiple_of(self.x_samples)
     }
 
+    /// Gets the number of x pixels that form a color block
+    ///
+    /// # Panics
+    ///
+    /// Panics if the format is not regular
     pub fn x_grouping(&self) -> u8 {
         assert!(
             self.is_regular(),
@@ -75,6 +82,11 @@ impl Subsampling {
         self.x_ref / self.x_samples
     }
 
+    /// Gets the number of y pixels that form a color block
+    ///
+    /// # Panics
+    ///
+    /// Panics if the format is not regular
     pub fn y_grouping(&self) -> u8 {
         assert!(
             self.is_regular(),

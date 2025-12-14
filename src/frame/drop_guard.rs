@@ -119,11 +119,11 @@ impl FrameDataDropGuard {
         }
     }
 
-    pub fn from_sender(&mut self, sender: Arc<RawSender>) {
+    pub fn update_from_sender(&mut self, sender: Arc<RawSender>) {
         *self = FrameDataDropGuard::Sender(Some(sender));
     }
 
-    pub fn from_receiver(&mut self, recv: Arc<RawReceiver>) {
+    pub fn update_from_receiver(&mut self, recv: Arc<RawReceiver>) {
         *self = FrameDataDropGuard::Receiver(Some(recv));
     }
 
