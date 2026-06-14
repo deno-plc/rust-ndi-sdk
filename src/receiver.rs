@@ -337,7 +337,7 @@ impl NDIReceiver {
                 Err(NDIRecvError::UnknownType)
             }
             #[cfg(not(any(debug_assertions, feature = "strict_assertions")))]
-            _ => NDIRecvType::Unknown,
+            _ => Ok(NDIRecvType::None),
         }
     }
 
