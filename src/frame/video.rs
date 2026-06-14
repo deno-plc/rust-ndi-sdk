@@ -238,7 +238,7 @@ impl VideoFrame {
     }
 
     pub fn raw_four_cc(&self) -> FourCC {
-        FourCC::from_ffi(self.raw.FourCC)
+        FourCC::from_ffi(self.raw.FourCC as i32)
     }
 
     /// Sets the FourCC format of the frame.

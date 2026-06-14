@@ -31,7 +31,7 @@ Despite its name this is not affiliated with `ndi`, `ndi-sdk`, `ndi-sys` crates
 
 ## Version compatibility
 
-This crate is currently tested against SDK version 6.2.0.3
+This crate is currently tested against SDK version 6.2.0.3 on Windows and 6.3.2.0 on Linux.
 
 The raw bindings are generated from the header files in the SDK installation
 directory, this way generated code will always match the version on the machine
@@ -39,10 +39,17 @@ it is compiled with and linked against.
 
 ## Platform Support
 
-This crates `build.rs` is currently lacking support for platforms other than
-Windows x64, because I had no time for it so far. If you are working on another
-platform, feel free to add support for it. (It shouldn't be that complicated,
-windows support is less than 30 lines of nearly-boilerplate code)
+| OS      | Architecture | Support | Notes                                                                                                    |
+| ------- | ------------ | ------- | -------------------------------------------------------------------------------------------------------- |
+| Windows | x86_64       | ✅      | `NDI_SDK_DIR` needs to be set                                                                            |
+| Linux   | x86_64       | ✅      | `NDI_HEADER_DIR` needs to be set if headers are not in /usr/include, and LDPATH must include `libndi.so` |
+| MacOS   | x86_64       | ❌      |                                                                                                          |
+| MacOS   | AArch64      | ❌      |                                                                                                          |
+
+All platforms not mentioned are unsupported and error out during the build.
+
+Feel free to add support for other platforms supported by the NDI SDK. (It shouldn't be that complicated,
+Windows support is less than 30 lines of nearly-boilerplate code)
 
 ## Installation
 

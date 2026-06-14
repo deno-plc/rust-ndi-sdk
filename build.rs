@@ -14,7 +14,19 @@ fn main() {
     }
 }
 
-#[cfg(not(all(target_os = "windows", target_arch = "x86_64")))]
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+fn main() {
+    if std::env::var("DOCS_RS").is_ok() {
+        // uses prebuilt stub bindings
+    } else {
+        linux();
+    }
+}
+
+#[cfg(not(all(
+    any(target_os = "windows", target_os = "linux"),
+    target_arch = "x86_64"
+)))]
 fn main() {
     if std::env::var("DOCS_RS").is_ok() {
         // uses prebuilt stub bindings
@@ -23,6 +35,7 @@ fn main() {
     }
 }
 
+#[allow(unused)]
 fn windows() {
     let ndi_sdk_dir = PathBuf::from(env::var("NDI_SDK_DIR").expect("Failed to locate the NDI SDK"));
 
@@ -47,6 +60,30 @@ fn windows() {
         Path::new(&env::var("OUT_DIR").unwrap()).join("../../../deps/Processing.NDI.Lib.x64.dll"),
     )
     .unwrap();
+}
+
+#[allow(unused)]
+fn linux() {
+    let ndi_header_file =
+        PathBuf::from(env::var("NDI_HEADER_DIR").unwrap_or("/usr/include".into()))
+            .join("Processing.NDI.Lib.h");
+    if !ndi_header_file.exists() {
+        panic!(
+            "You are missing the Processing.NDI.Lib.h header. Please install the Linux NDI SDK from https://ndi.video or through your package manager. If you have installed the SDK, but the header file is not located in /usr/include, set NDI_HEADER_DIR to point to the appropriate directory containing the header."
+        );
+    }
+
+    println!("cargo::rustc-link-lib=dylib=ndi");
+
+    let bindings = bindgen::Builder::default().header(ndi_header_file.to_str().unwrap());
+
+    generate_bindings(bindings);
+
+    // fs::copy(
+    //     ndi_sdk_dir.join("Bin/x64/Processing.NDI.Lib.x64.dll"),
+    //     Path::new(&env::var("OUT_DIR").unwrap()).join("../../../deps/Processing.NDI.Lib.x64.dll"),
+    // )
+    // .unwrap();
 }
 
 fn generate_bindings(builder: Builder) {
@@ -82,7 +119,7 @@ fn generate_bindings(builder: Builder) {
 fn stub_bindings(mut bindings: String) -> String {
     bindings = bindings.replace("\r\n", "\n");
 
-    let re = Regex::new("(?s)(?:unsafe )?extern \"C\" \\{([^}]+)\\}").unwrap();
+    let re = Regex::new(r#"(?s)(?:unsafe )?extern "C" \{([^}]+)\}"#).unwrap();
 
     let mut replacements = 0;
 
@@ -114,11 +151,22 @@ fn stub_bindings(mut bindings: String) -> String {
         "No unsafe extern \"C\" functions found in the bindings"
     );
 
-    assert_eq!(
-        bindings.matches("extern \"C\"").count(),
-        0,
-        "Found 'extern \"C\"' in the bindings, all should have been replaced"
-    );
+    // The following assertion does not work with function pointer arguments, which are present in the Linux bindings.
+    // Example snippet:
+    // ```
+    //  pub util_audio_to_interleaved_16s_v3: ::std::option::Option<
+    //     unsafe extern "C" fn(
+    //         p_src: *const NDIlib_audio_frame_v3_t,
+    //         p_dst: *mut NDIlib_audio_frame_interleaved_16s_t,
+    //     ) -> bool,
+    // >,
+    // ```
+
+    // assert_eq!(
+    //     bindings.matches("extern \"C\"").count(),
+    //     0,
+    //     "Found 'extern \"C\"' in the bindings, all should have been replaced"
+    // );
 
     format!("// Stub build\n{bindings}")
 }

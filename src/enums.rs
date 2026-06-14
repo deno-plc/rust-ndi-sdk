@@ -11,7 +11,8 @@ use crate::{
 /// If you can handle all color formats you should use `Fastest`
 ///
 /// C equivalent: `NDIlib_recv_color_format_e`
-#[repr(i32)]
+#[cfg_attr(target_os = "windows", repr(i32))]
+#[cfg_attr(not(target_os = "windows"), repr(u32))]
 #[non_exhaustive]
 #[allow(non_camel_case_types)]
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
@@ -167,7 +168,8 @@ impl NDIBandwidthMode {
 /// describes if fielding is used and which half is in the current frame
 ///
 /// C equivalent: `NDIlib_frame_format_type_e`
-#[repr(i32)]
+#[cfg_attr(target_os = "windows", repr(i32))]
+#[cfg_attr(not(target_os = "windows"), repr(u32))]
 #[non_exhaustive]
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 pub enum NDIFieldedFrameMode {

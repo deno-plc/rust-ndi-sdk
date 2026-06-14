@@ -32,6 +32,10 @@
 //! are APIs that allow to change the resolution of a video frame while it is
 //! allocated, which may lead to out-of-bounds memory access by safe code.
 
+// Cross-platform compatibility requires us to cast i32<->u32 regularly.
+// That’s because C enums are i32 on Windows and u32 on Linux.
+#![allow(clippy::cast_sign_loss, clippy::unnecessary_cast)]
+
 mod bindings;
 
 pub mod blocking_update;
