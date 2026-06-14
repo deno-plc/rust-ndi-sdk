@@ -1,3 +1,5 @@
+use std::error::Error;
+
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 use crate::{
@@ -137,6 +139,31 @@ pub enum FromFourCCError {
     UnsupportedCombination,
 }
 
+impl std::fmt::Display for FromFourCCError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FromFourCCError::UnsupportedFormat { format } => {
+                write!(f, "Unsupported video format {format:?}")
+            }
+            FromFourCCError::WrongAlphaMode {
+                format,
+                has_alpha,
+                expected_alpha,
+            } => write!(
+                f,
+                "Wrong alpha mode in {format:?}, has {}alpha but expected {}alpha",
+                if *has_alpha { "" } else { "no " },
+                if *expected_alpha { "" } else { "no " }
+            ),
+            FromFourCCError::UnsupportedCombination => {
+                f.write_str("Unsupported format combination")
+            }
+        }
+    }
+}
+
+impl Error for FromFourCCError {}
+
 /// Selects which types of frames are transmitted and which quality is used
 ///
 /// This can be beneficial for preview screens or if you only want metadata
@@ -238,3 +265,14 @@ pub enum NDIRecvError {
     /// The frame to be written to is not writable
     NotWritable,
 }
+
+impl std::fmt::Display for NDIRecvError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::UnknownType => f.write_str("Unknown frame type returned from SDK"),
+            Self::NotWritable => f.write_str("Frame is not writable"),
+        }
+    }
+}
+
+impl Error for NDIRecvError {}

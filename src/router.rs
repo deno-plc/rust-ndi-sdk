@@ -60,6 +60,16 @@ pub enum NDIRouterBuilderError {
     CreationFailed,
 }
 
+impl std::fmt::Display for NDIRouterBuilderError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::CreationFailed => f.write_str("Creating NDI router failed"),
+        }
+    }
+}
+
+impl std::error::Error for NDIRouterBuilderError {}
+
 /// NDI Router
 ///
 /// For more information see module docs

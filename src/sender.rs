@@ -1,6 +1,7 @@
 //! NDI Sender
 
 use std::{
+    error::Error,
     ffi::CString,
     fmt::Debug,
     ptr::NonNull,
@@ -122,6 +123,16 @@ impl NDISenderBuilder {
 pub enum NDISenderBuilderError {
     CreationFailed,
 }
+
+impl std::fmt::Display for NDISenderBuilderError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::CreationFailed => f.write_str("NDI Sender creation failed"),
+        }
+    }
+}
+
+impl Error for NDISenderBuilderError {}
 
 #[derive(PartialEq, Eq)]
 pub(crate) struct RawSender {
@@ -408,3 +419,13 @@ impl Drop for NDISender {
 pub enum SendFrameError {
     NotSendable(&'static str),
 }
+
+impl std::fmt::Display for SendFrameError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NotSendable(message) => write!(f, "Frame is not sendable: {message}"),
+        }
+    }
+}
+
+impl Error for SendFrameError {}

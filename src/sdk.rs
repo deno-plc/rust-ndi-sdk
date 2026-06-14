@@ -1,6 +1,6 @@
 //! Contains methods for the whole SDK like startup/shutdown, CPU support tests and version lookup
 
-use std::ffi::CStr;
+use std::{error::Error, ffi::CStr};
 
 use crate::bindings;
 
@@ -77,3 +77,17 @@ pub enum NDIInitError {
     UnsupportedCPU,
     GenericError,
 }
+
+impl std::fmt::Display for NDIInitError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            #[cfg(target_arch = "x86_64")]
+            Self::UnsupportedCPU => f.write_str("Unsupported CPU, NDI requires SSE4.2"),
+            #[cfg(not(target_arch = "x86_64"))]
+            Self::UnsupportedCPU => f.write_str("Unsupported CPU"),
+            Self::GenericError => f.write_str("Generic NDI SDK error"),
+        }
+    }
+}
+
+impl Error for NDIInitError {}

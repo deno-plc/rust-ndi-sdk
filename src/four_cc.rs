@@ -93,6 +93,17 @@ pub enum BufferInfoError {
     UnspecifiedFourCC,
 }
 
+impl std::fmt::Display for BufferInfoError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::UnsupportedFourCC(fourcc) => write!(f, "No layout implementation for {fourcc:?}"),
+            Self::UnspecifiedFourCC => f.write_str("Video format was not specified"),
+        }
+    }
+}
+
+impl std::error::Error for BufferInfoError {}
+
 /// Possible FourCC values for audio frames.
 #[cfg_attr(target_os = "windows", repr(i32))]
 #[cfg_attr(not(target_os = "windows"), repr(u32))]
