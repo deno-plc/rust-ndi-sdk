@@ -74,6 +74,7 @@ fn linux() {
     }
 
     println!("cargo::rustc-link-lib=dylib=ndi");
+    println!("cargo::rerun-if-env-changed=NDI_HEADER_DIR");
 
     let bindings = bindgen::Builder::default().header(ndi_header_file.to_str().unwrap());
 
