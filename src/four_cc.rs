@@ -130,7 +130,6 @@ impl FourCCAudio {
 #[repr(transparent)]
 #[derive(Clone, Copy, Hash, PartialEq, Eq)]
 pub struct FourCC {
-    // use anything with 32bit, using signed reduces the number of casts
     code: i32,
 }
 
@@ -147,12 +146,12 @@ impl FourCC {
 
     /// Attempts to convert the FourCC to a FourCCVideo.
     pub fn as_video(&self) -> Option<FourCCVideo> {
-        FourCCVideo::from_ffi(self.code as u32)
+        FourCCVideo::from_ffi(self.code as NDIlib_FourCC_video_type_e)
     }
 
     /// Attempts to convert the FourCC to a FourCCAudio.
     pub fn as_audio(&self) -> Option<FourCCAudio> {
-        FourCCAudio::from_ffi(self.code as u32)
+        FourCCAudio::from_ffi(self.code as NDIlib_FourCC_audio_type_e)
     }
 
     /// formats the FourCC as a string.
@@ -216,7 +215,7 @@ impl TryFrom<FourCC> for FourCCVideo {
     type Error = ();
 
     fn try_from(value: FourCC) -> Result<Self, Self::Error> {
-        FourCCVideo::from_ffi(value.code as u32).ok_or(())
+        FourCCVideo::from_ffi(value.code as NDIlib_FourCC_video_type_e).ok_or(())
     }
 }
 
@@ -224,7 +223,7 @@ impl TryFrom<FourCC> for FourCCAudio {
     type Error = ();
 
     fn try_from(value: FourCC) -> Result<Self, Self::Error> {
-        FourCCAudio::from_ffi(value.code as u32).ok_or(())
+        FourCCAudio::from_ffi(value.code as NDIlib_FourCC_audio_type_e).ok_or(())
     }
 }
 
