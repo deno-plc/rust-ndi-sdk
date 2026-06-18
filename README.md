@@ -31,7 +31,8 @@ Despite its name this is not affiliated with `ndi`, `ndi-sdk`, `ndi-sys` crates
 
 ## Version compatibility
 
-This crate is currently tested against SDK version 6.2.0.3 on Windows and 6.3.2.0 on Linux.
+This crate is currently tested against SDK version 6.2.0.3 on Windows and
+6.3.2.0 on Linux.
 
 The raw bindings are generated from the header files in the SDK installation
 directory, this way generated code will always match the version on the machine
@@ -48,8 +49,9 @@ it is compiled with and linked against.
 
 All platforms not mentioned are unsupported and error out during the build.
 
-Feel free to add support for other platforms supported by the NDI SDK. (It shouldn't be that complicated,
-Windows support is less than 30 lines of nearly-boilerplate code)
+Feel free to add support for other platforms supported by the NDI SDK. (It
+shouldn't be that complicated, Windows support is less than 30 lines of
+nearly-boilerplate code)
 
 ## Installation
 
@@ -103,7 +105,7 @@ Contributions are welcome! Here's how you can help:
 
 ## License
 
-Copyright (C) 2025 Hans Schallmoser
+Copyright (C) 2025 - 2026 Hans Schallmoser & Contributors
 
 Licensed under GPL-v3.
 
