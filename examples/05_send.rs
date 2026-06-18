@@ -1,8 +1,8 @@
 use std::time::Instant;
 
 use ndi_sdk_sys::{
-    four_cc::FourCCVideo, frame::video::VideoFrame, sdk, sender::NDISenderBuilder,
-    resolution::Resolution,
+    four_cc::FourCCVideo, frame::video::VideoFrame, resolution::Resolution, sdk,
+    sender::NDISenderBuilder,
 };
 
 fn main() {

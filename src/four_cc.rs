@@ -9,12 +9,15 @@ use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 use crate::{
     bindings::{self, NDIlib_FourCC_audio_type_e, NDIlib_FourCC_video_type_e},
+    buffer_info::BufferInfo,
     enums::NDIFieldedFrameMode,
-    buffer_info::BufferInfo, resolution::Resolution, subsampling::Subsampling,
+    resolution::Resolution,
+    subsampling::Subsampling,
 };
 
 /// Possible FourCC values for video frames.
-#[repr(i32)]
+#[cfg_attr(target_os = "windows", repr(i32))]
+#[cfg_attr(not(target_os = "windows"), repr(u32))]
 #[non_exhaustive]
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
@@ -90,8 +93,20 @@ pub enum BufferInfoError {
     UnspecifiedFourCC,
 }
 
+impl std::fmt::Display for BufferInfoError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::UnsupportedFourCC(fourcc) => write!(f, "No layout implementation for {fourcc:?}"),
+            Self::UnspecifiedFourCC => f.write_str("Video format was not specified"),
+        }
+    }
+}
+
+impl std::error::Error for BufferInfoError {}
+
 /// Possible FourCC values for audio frames.
-#[repr(i32)]
+#[cfg_attr(target_os = "windows", repr(i32))]
+#[cfg_attr(not(target_os = "windows"), repr(u32))]
 #[non_exhaustive]
 #[allow(non_camel_case_types)]
 #[derive(Debug, Default, Clone, Copy, Hash, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
@@ -115,7 +130,6 @@ impl FourCCAudio {
 #[repr(transparent)]
 #[derive(Clone, Copy, Hash, PartialEq, Eq)]
 pub struct FourCC {
-    // use anything with 32bit, using signed reduces the number of casts
     code: i32,
 }
 
@@ -132,12 +146,12 @@ impl FourCC {
 
     /// Attempts to convert the FourCC to a FourCCVideo.
     pub fn as_video(&self) -> Option<FourCCVideo> {
-        FourCCVideo::from_ffi(self.code)
+        FourCCVideo::from_ffi(self.code as NDIlib_FourCC_video_type_e)
     }
 
     /// Attempts to convert the FourCC to a FourCCAudio.
     pub fn as_audio(&self) -> Option<FourCCAudio> {
-        FourCCAudio::from_ffi(self.code)
+        FourCCAudio::from_ffi(self.code as NDIlib_FourCC_audio_type_e)
     }
 
     /// formats the FourCC as a string.
@@ -172,7 +186,7 @@ impl Debug for FourCC {
 impl From<FourCCVideo> for FourCC {
     fn from(value: FourCCVideo) -> Self {
         FourCC {
-            code: value.to_ffi(),
+            code: value.to_ffi() as i32,
         }
     }
 }
@@ -180,7 +194,7 @@ impl From<FourCCVideo> for FourCC {
 impl From<FourCCAudio> for FourCC {
     fn from(value: FourCCAudio) -> Self {
         FourCC {
-            code: value.to_ffi(),
+            code: value.to_ffi() as i32,
         }
     }
 }
@@ -201,7 +215,7 @@ impl TryFrom<FourCC> for FourCCVideo {
     type Error = ();
 
     fn try_from(value: FourCC) -> Result<Self, Self::Error> {
-        FourCCVideo::from_ffi(value.code).ok_or(())
+        FourCCVideo::from_ffi(value.code as NDIlib_FourCC_video_type_e).ok_or(())
     }
 }
 
@@ -209,7 +223,7 @@ impl TryFrom<FourCC> for FourCCAudio {
     type Error = ();
 
     fn try_from(value: FourCC) -> Result<Self, Self::Error> {
-        FourCCAudio::from_ffi(value.code).ok_or(())
+        FourCCAudio::from_ffi(value.code as NDIlib_FourCC_audio_type_e).ok_or(())
     }
 }
 

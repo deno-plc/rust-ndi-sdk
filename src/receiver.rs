@@ -3,6 +3,7 @@
 //! <https://docs.ndi.video/all/developing-with-ndi/sdk/ndi-recv>
 
 use std::{
+    error::Error,
     ffi::{CStr, CString},
     fmt::Debug,
     ptr::NonNull,
@@ -131,6 +132,16 @@ impl<Source: NDISourceLike> NDIReceiverBuilder<Source> {
 pub enum NDIReceiverBuilderError {
     CreationFailed,
 }
+
+impl std::fmt::Display for NDIReceiverBuilderError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::CreationFailed => f.write_str("Creating NDI receiver failed"),
+        }
+    }
+}
+
+impl Error for NDIReceiverBuilderError {}
 
 #[derive(PartialEq, Eq)]
 pub(crate) struct RawReceiver {
@@ -337,7 +348,7 @@ impl NDIReceiver {
                 Err(NDIRecvError::UnknownType)
             }
             #[cfg(not(any(debug_assertions, feature = "strict_assertions")))]
-            _ => NDIRecvType::Unknown,
+            _ => Ok(NDIRecvType::None),
         }
     }
 
@@ -423,6 +434,17 @@ pub enum SendMetadataError {
     /// The metadata could not be sent because the receiver is not connected
     NotConnected,
 }
+
+impl std::fmt::Display for SendMetadataError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NotSendable(message) => write!(f, "Metadata is not readable: {message}"),
+            Self::NotConnected => f.write_str("Receiver is not connected, cannot send metadata"),
+        }
+    }
+}
+
+impl Error for SendMetadataError {}
 
 pub struct NDIWebControlInfo<'a> {
     url: &'a CStr,

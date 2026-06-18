@@ -1,4 +1,5 @@
 use num::ToPrimitive;
+use std::error::Error;
 use std::fmt::Debug;
 use std::{ffi::CStr, sync::Arc};
 
@@ -208,6 +209,47 @@ pub enum VideoFrameAccessError {
     BufferInfoError(BufferInfoError),
 }
 
+impl std::fmt::Display for VideoFrameAllocationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::AlreadyAllocated => f.write_str("Frame already allocated"),
+            Self::BufferInfoError(buffer_info_error) => {
+                write!(f, "Obtaining framebuffer info failed: {buffer_info_error}")
+            }
+        }
+    }
+}
+
+impl Error for VideoFrameAllocationError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::AlreadyAllocated => None,
+            Self::BufferInfoError(buffer_info_error) => Some(buffer_info_error),
+        }
+    }
+}
+
+impl std::fmt::Display for VideoFrameAccessError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::BufferInfoError(buffer_info_error) => {
+                write!(f, "Obtaining framebuffer info failed: {buffer_info_error}")
+            }
+            Self::NotAllocated => f.write_str("No framebuffer is allocated"),
+            Self::Readonly => f.write_str("Framebuffer is read-only"),
+        }
+    }
+}
+
+impl Error for VideoFrameAccessError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::BufferInfoError(buffer_info_error) => Some(buffer_info_error),
+            Self::NotAllocated | Self::Readonly => None,
+        }
+    }
+}
+
 // Property accessors
 impl VideoFrame {
     /// Gets the resolution of the frame.
@@ -238,7 +280,7 @@ impl VideoFrame {
     }
 
     pub fn raw_four_cc(&self) -> FourCC {
-        FourCC::from_ffi(self.raw.FourCC)
+        FourCC::from_ffi(self.raw.FourCC as i32)
     }
 
     /// Sets the FourCC format of the frame.
@@ -311,6 +353,14 @@ impl VideoFrame {
 
 #[derive(Debug, Clone)]
 pub struct AlreadyAllocatedError {}
+
+impl std::fmt::Display for AlreadyAllocatedError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Framebuffer already allocated")
+    }
+}
+
+impl Error for AlreadyAllocatedError {}
 
 // Dangerous APIs
 #[cfg(feature = "dangerous_apis")]
