@@ -5,33 +5,18 @@ use bindgen::Builder;
 
 use regex::Regex;
 
-#[cfg(all(target_os = "windows", target_arch = "x86_64"))]
-fn main() {
-    if std::env::var("DOCS_RS").is_ok() {
-        // uses prebuilt stub bindings
-    } else {
-        windows();
-    }
-}
+use build_rs::input::target;
 
-#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 fn main() {
+    println!("cargo:rerun-if-changed=build.rs");
     if std::env::var("DOCS_RS").is_ok() {
         // uses prebuilt stub bindings
     } else {
-        linux();
-    }
-}
-
-#[cfg(not(all(
-    any(target_os = "windows", target_os = "linux"),
-    target_arch = "x86_64"
-)))]
-fn main() {
-    if std::env::var("DOCS_RS").is_ok() {
-        // uses prebuilt stub bindings
-    } else {
-        panic!("This platform is not supported yet");
+        match target().as_str() {
+            "x86_64-pc-windows-msvc" => windows(),
+            "x86_64-unknown-linux-gnu" => linux(),
+            target => panic!("{target} is not supported yet"),
+        }
     }
 }
 
@@ -53,7 +38,7 @@ fn windows() {
             .unwrap(),
     );
 
-    generate_bindings(bindings);
+    generate_bindings(bindings, "x86_64-pc-windows-msvc");
 
     fs::copy(
         ndi_sdk_dir.join("Bin/x64/Processing.NDI.Lib.x64.dll"),
@@ -64,9 +49,20 @@ fn windows() {
 
 #[allow(unused)]
 fn linux() {
-    let ndi_header_file =
-        PathBuf::from(env::var("NDI_HEADER_DIR").unwrap_or("/usr/include".into()))
-            .join("Processing.NDI.Lib.h");
+    let ndi_header_file = PathBuf::from({
+        let p = env::var("NDI_HEADER_DIR").ok();
+
+        /// when building on windows use headers from windows SDK installation
+        #[cfg(target_os = "windows")]
+        let p = p.or(env::var("NDI_SDK_DIR").ok().map(|mut p| {
+            p.push_str("/Include");
+            p
+        }));
+
+        p.unwrap_or("/usr/include".into())
+    })
+    .join("Processing.NDI.Lib.h");
+
     if !ndi_header_file.exists() {
         panic!(
             "You are missing the Processing.NDI.Lib.h header. Please install the Linux NDI SDK from https://ndi.video or through your package manager. If you have installed the SDK, but the header file is not located in /usr/include, set NDI_HEADER_DIR to point to the appropriate directory containing the header."
@@ -78,16 +74,10 @@ fn linux() {
 
     let bindings = bindgen::Builder::default().header(ndi_header_file.to_str().unwrap());
 
-    generate_bindings(bindings);
-
-    // fs::copy(
-    //     ndi_sdk_dir.join("Bin/x64/Processing.NDI.Lib.x64.dll"),
-    //     Path::new(&env::var("OUT_DIR").unwrap()).join("../../../deps/Processing.NDI.Lib.x64.dll"),
-    // )
-    // .unwrap();
+    generate_bindings(bindings, "x86_64-unknown-linux-gnu");
 }
 
-fn generate_bindings(builder: Builder) {
+fn generate_bindings(builder: Builder, target_os: &str) {
     let mut bindings = builder
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .blocklist_item("NDIlib_v6__bindgen_ty_[0-9]+")
@@ -105,15 +95,15 @@ fn generate_bindings(builder: Builder) {
 
     let default_bindings = bindings.to_string();
 
-    // fs::write("./src/bindings/bindings.full.rs.bin", &default_bindings)
-    //     .expect("Couldn't write docsrs bindings!");
-
     let stub_bindings = stub_bindings(default_bindings.clone());
 
     fs::write(out_path.join("bindings.rs"), default_bindings).expect("Couldn't write bindings!");
 
-    fs::write("./src/bindings/bindings.docsrs.rs.bin", stub_bindings)
-        .expect("Couldn't write docsrs bindings!");
+    fs::write(
+        format!("./src/bindings/bindings.docsrs.{target_os}.rs.bin"),
+        stub_bindings,
+    )
+    .expect("Couldn't write docsrs bindings!");
 }
 
 /// Replaces `extern "C"` with stub functions for docs.rs builds

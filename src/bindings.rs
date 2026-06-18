@@ -9,5 +9,9 @@
 #[cfg(not(any(docsrs, feature = "docsrs")))]
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
-#[cfg(any(docsrs, feature = "docsrs"))]
-include!("./bindings/bindings.docsrs.rs.bin");
+#[cfg(all(
+    any(docsrs, feature = "docsrs"),
+    target_os = "linux",
+    target_arch = "x86_64",
+))]
+include!("./bindings/bindings.docsrs.x86_64-unknown-linux-gnu.rs.bin");
